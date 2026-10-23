@@ -1,0 +1,20 @@
+Type: project
+Title: Douglas Fritz Research Website
+Description: R packages used to build the site and its CV data pipeline.
+    renv records these and their dependencies in renv.lock ("explicit"
+    snapshot type), so add a package here before running renv::snapshot().
+Depends:
+    R (>= 4.4.0)
+Imports:
+    curl,
+    dplyr,
+    jsonlite,
+    knitr,
+    lubridate,
+    readr,
+    rlang,
+    rmarkdown,
+    stringr,
+    testthat,
+    tibble,
+    yaml
