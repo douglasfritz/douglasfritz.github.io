@@ -1,0 +1,5 @@
+// styles/_components.scss
+// Shared shell components. Palette tokens come from _variables.scss.
+.navbar { border-bottom: 1px solid $cool-steel; }
+.navbar .nav-link.active { text-decoration: underline; text-underline-offset: 0.35em; }
+.nav-footer { border-top: 1px solid $cool-steel; }

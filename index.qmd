@@ -1,0 +1,5 @@
+---
+title: "Home"
+---
+
+This site introduces Douglas Fritz, a translational physician-scientist for public health whose work connects infectious-disease biology, quantitative discovery, clinical translation, and planetary health.

@@ -1,0 +1,15 @@
+// styles/styles.scss
+/*-- scss:defaults --*/
+@import "variables";
+
+/*-- scss:rules --*/
+@import "components";
+
+html { color: $jet-black; background: $light-cyan; }
+body { color: $jet-black; }
+a { color: $blue-slate; text-underline-offset: 0.18em; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: none;
+  box-shadow: $focus-ring;
+}
+.page-columns { max-width: 1180px; margin-inline: auto; }

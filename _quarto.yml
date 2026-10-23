@@ -1,0 +1,36 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "Douglas Fritz"
+  site-url: "https://douglasfritz.github.io/"
+  search: true
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: research/index.qmd
+        text: Research
+      - href: publications/index.qmd
+        text: Publications
+      - href: talks/index.qmd
+        text: Talks & Reach
+      - href: about/index.qmd
+        text: About
+      - href: cv/index.qmd
+        text: CV
+  page-footer:
+    left: "© Douglas Fritz"
+    right: "Built with Quarto, R, and GitHub Pages"
+
+format:
+  html:
+    theme: styles/styles.scss
+    toc: false
+    smooth-scroll: true
+    link-external-newwindow: false
+    lang: en
+
+execute:
+  freeze: false

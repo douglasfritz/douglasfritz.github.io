@@ -1,0 +1,16 @@
+// styles/_variables.scss
+$light-cyan: #E0FBFC;
+$light-blue: #C2DFE3;
+$cool-steel: #9DB4C0;
+$blue-slate: #5C6B73;
+$jet-black: #253237;
+$surface: #FFFFFF;
+$focus-ring: 0 0 0 3px rgba(37, 50, 55, 0.35);
+
+// Map the palette onto Quarto/Bootstrap theme variables.
+$body-bg: $light-cyan;
+$body-color: $jet-black;
+$navbar-bg: $light-blue;
+$navbar-fg: $jet-black;
+$navbar-hl: $jet-black;
+$footer-fg: $jet-black;
