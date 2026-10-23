@@ -7,9 +7,14 @@
 
 html { color: $jet-black; background: $light-cyan; }
 body { color: $jet-black; }
-a { color: $blue-slate; text-underline-offset: 0.18em; }
-a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
-  outline: none;
-  box-shadow: $focus-ring;
+a { text-underline-offset: 0.18em; }
+// The .nav-link, .navbar-toggler and form-control selectors beat Bootstrap's own
+// outline:0 + translucent box-shadow focus styles, which have higher specificity.
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible,
+.nav-link:focus-visible, .navbar-toggler:focus-visible,
+.form-control:focus-visible, .form-select:focus-visible {
+  outline: $focus-ring;
+  outline-offset: $focus-ring-offset;
+  box-shadow: none;
 }
 .page-columns { max-width: 1180px; margin-inline: auto; }

@@ -5,11 +5,21 @@ $cool-steel: #9DB4C0;
 $blue-slate: #5C6B73;
 $jet-black: #253237;
 $surface: #FFFFFF;
-$focus-ring: 0 0 0 3px rgba(37, 50, 55, 0.35);
+// Opaque focus indicator (an outline survives forced-colors mode; a box-shadow does not).
+$focus-ring: 3px solid $jet-black;
+$focus-ring-offset: 2px;
+
+// Typography: system sans-serif for body text, a restrained serif for headings.
+// No third-party font service.
+$font-family-sans-serif: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+$headings-font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
 
 // Map the palette onto Quarto/Bootstrap theme variables.
 $body-bg: $light-cyan;
 $body-color: $jet-black;
+$primary: $blue-slate;
+$link-color: $blue-slate;
+$link-hover-color: $jet-black;
 $navbar-bg: $light-blue;
 $navbar-fg: $jet-black;
 $navbar-hl: $jet-black;
