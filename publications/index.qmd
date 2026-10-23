@@ -1,5 +1,31 @@
 ---
 title: "Publications"
+description: "Douglas Fritz's journal articles, newest first, with their authors, journal, status, research pillars and topic tags, and links to the DOI or publisher page and to any preprint."
+# Card titles are not sections: no "#" anchor links on them.
+anchor-sections: false
+include-in-header:
+  text: <script type="module" src="../js/archive-filters.js"></script>
+listing:
+  id: publications
+  contents: ../data/generated/publications.yml
+  template: ../templates/publication.ejs.md
+  # Keep the generated order (year, newest first, then title) and render every
+  # record: no Quarto sorting, paging, filtering, categories or feed. The
+  # template has no `.list` element, so Quarto's list.js never attaches;
+  # js/archive-filters.js does the filtering.
+  sort: false
+  page-size: 100000
+  filter-ui: false
+  sort-ui: false
+  categories: false
+  feed: false
+  template-params:
+    # Canonical pillar order (R/config.R); sets each pillar's number.
+    pillars:
+      - "Infectious-disease biology, evolution and environment"
+      - "Quantitative and experimental biomedical discovery"
+      - "Clinical translation and health-system improvement"
+      - "Climate and planetary health in medicine"
 ---
 
-This page will hold a searchable archive of Douglas Fritz's publications.
+Every entry shows its exact status. Entries marked **In Review** are manuscripts still under peer review: they are not published work.

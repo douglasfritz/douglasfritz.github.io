@@ -1,6 +1,13 @@
 project:
   type: website
   output-dir: _site
+  # Pages are .qmd files. templates/*.ejs.md are listing templates, which
+  # Quarto would otherwise render as pages of their own.
+  render:
+    - "*.qmd"
+  # Browser modules, loaded by the archive pages.
+  resources:
+    - "js/*.js"
 
 website:
   title: "Douglas Fritz"
@@ -30,6 +37,9 @@ format:
     toc: false
     smooth-scroll: true
     link-external-newwindow: false
+    # The site has no mathematics. Without this, listing pages load MathJax and
+    # a polyfill from third-party CDNs.
+    html-math-method: plain
     lang: en
 
 execute:

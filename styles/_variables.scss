@@ -24,3 +24,5 @@ $navbar-bg: $light-blue;
 $navbar-fg: $jet-black;
 $navbar-hl: $jet-black;
 $footer-fg: $jet-black;
+// Form-field borders at 3:1 or more against white (WCAG 1.4.11).
+$input-border-color: $blue-slate;
