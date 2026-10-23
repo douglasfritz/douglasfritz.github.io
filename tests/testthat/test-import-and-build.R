@@ -46,16 +46,84 @@ test_that("build arguments are parsed with defaults", {
   )
 })
 
-test_that("the fixture build validates and reports warnings without failing", {
+expected_output_files <- c(
+  "build-metadata.json", "pillars.json", "publications.yml", "talks.geojson",
+  "talks.yml"
+)
+
+# Fixture CSV with every row's website_include set to "N".
+csv_without_public_rows <- function(tab) {
+  rows <- fixture_sources()[[tab]]
+  rows$website_include <- "N"
+  csv <- tempfile(fileext = ".csv")
+  readr::write_csv(rows, csv, na = "")
+  csv
+}
+
+test_that("the fixture build writes the five public files and reports warnings", {
+  output_dir <- file.path(withr::local_tempdir(), "generated")
+  dir.create(output_dir)
+  file.create(file.path(output_dir, ".gitkeep"))
+
   result <- run_build_script(c(
     "--publications", fixture_file("journal_articles.csv"),
     "--talks", fixture_file("conferences.csv"),
-    "--output-dir", tempfile("site-data-")
+    "--output-dir", output_dir
   ))
   expect_equal(result$status, 0L, info = result$stderr)
-  expect_match(result$stdout, "Validated 5 publications \\(3 public\\) and 6 talks \\(4 public\\)")
+  expect_match(
+    result$stdout,
+    "Validated 5 publications \\(3 public\\) and 6 talks \\(4 public, 3 mapped\\)\\. Wrote 5 files to "
+  )
   expect_match(result$stderr, "WARNING: talks: talk-3 has no verified coordinates", fixed = TRUE)
   expect_match(result$stderr, "WARNING: publications: pub-2 has no plain_summary", fixed = TRUE)
+
+  expect_setequal(
+    list.files(output_dir, all.files = TRUE, no.. = TRUE),
+    c(".gitkeep", expected_output_files)
+  )
+  expect_length(yaml::read_yaml(file.path(output_dir, "publications.yml")), 3)
+  expect_length(yaml::read_yaml(file.path(output_dir, "talks.yml")), 4)
+  geojson <- jsonlite::read_json(file.path(output_dir, "talks.geojson"))
+  expect_identical(geojson$type, "FeatureCollection")
+  expect_length(geojson$features, 3)
+  expect_named(jsonlite::read_json(file.path(output_dir, "pillars.json")), site_config$pillars)
+  metadata <- jsonlite::read_json(file.path(output_dir, "build-metadata.json"))
+  expect_identical(metadata$public_rows, list(publications = 3L, talks = 4L))
+})
+
+test_that("a tab with no public rows exits nonzero and leaves the output unchanged", {
+  output_dir <- withr::local_tempdir()
+  writeLines("previous build", file.path(output_dir, "talks.yml"))
+
+  result <- run_build_script(c(
+    "--publications", fixture_file("journal_articles.csv"),
+    "--talks", csv_without_public_rows("talks"),
+    "--output-dir", output_dir
+  ))
+  expect_false(result$status == 0L)
+  expect_match(result$stderr, "ERROR: No public talks", fixed = TRUE)
+  expect_identical(list.files(output_dir, all.files = TRUE, no.. = TRUE), "talks.yml")
+  expect_identical(readLines(file.path(output_dir, "talks.yml")), "previous build")
+})
+
+test_that("a tab with no public rows never creates the output directory", {
+  script <- new.env()
+  source(file.path(repo_root(), "scripts", "build_data.R"), local = script)
+  output_dir <- file.path(withr::local_tempdir(), "generated")
+
+  expect_error(
+    suppressMessages(script$main(
+      c(
+        "--publications", csv_without_public_rows("publications"),
+        "--talks", fixture_file("conferences.csv"),
+        "--output-dir", output_dir
+      ),
+      root = repo_root()
+    )),
+    "No public publications"
+  )
+  expect_false(dir.exists(output_dir))
 })
 
 test_that("a bad publications path exits nonzero before any output changes", {
@@ -92,14 +160,16 @@ test_that("invalid source data exits nonzero naming the record", {
   publications$key[2] <- "pub-1"
   bad_csv <- tempfile(fileext = ".csv")
   readr::write_csv(publications, bad_csv, na = "")
+  output_dir <- tempfile("site-data-")
 
   result <- run_build_script(c(
     "--publications", bad_csv,
     "--talks", fixture_file("conferences.csv"),
-    "--output-dir", tempfile("site-data-")
+    "--output-dir", output_dir
   ))
   expect_false(result$status == 0L)
   expect_match(result$stderr, "publications: duplicate key 'pub-1'", fixed = TRUE)
+  expect_false(dir.exists(output_dir))
 })
 
 test_that("import reads every column as text, keeping leading zeros and blanks", {

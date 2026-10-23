@@ -1,13 +1,16 @@
 #!/usr/bin/env Rscript
 # Builds the public website data from the CV sheet:
-# import -> normalize -> validate -> (export: added by the export step).
+# import -> normalize -> validate -> export (publications.yml, talks.yml,
+# talks.geojson, pillars.json, build-metadata.json).
 #
 # Usage, from the repository root:
 #   Rscript scripts/build_data.R [--publications PATH] [--talks PATH] [--output-dir DIR]
 #
 # --publications / --talks read local CSV files instead of the public sheet;
-# --output-dir defaults to data/generated. Any import or validation failure
-# exits nonzero before anything is written. Warnings never fail the build.
+# --output-dir defaults to data/generated. Any import or validation failure,
+# or a tab with no public rows, exits nonzero before anything is written.
+# Otherwise the five files replace the previous ones together, and a failed
+# write leaves the previous files unchanged. Warnings never fail the build.
 
 build_usage <- paste(
   "Usage: Rscript scripts/build_data.R",
@@ -44,7 +47,7 @@ build_root <- function() {
 }
 
 # Runs the pipeline; stops on any failure. Returns the normalized, validated
-# sources and the output directory for the export step.
+# sources, the public datasets and the output directory.
 main <- function(args = commandArgs(trailingOnly = TRUE), root = build_root()) {
   opts <- parse_build_args(args, root)
 
@@ -56,13 +59,21 @@ main <- function(args = commandArgs(trailingOnly = TRUE), root = build_root()) {
   for (text in collect_build_warnings(publications, talks)) {
     message("WARNING: ", text)
   }
+
+  built <- build_public_data(publications, talks)
+  assert_nonempty_public_data(built)
+  files <- write_public_data(built, opts$output_dir)
   cat(sprintf(
-    "Validated %d publications (%d public) and %d talks (%d public). No files written.\n",
-    nrow(publications), nrow(select_website_rows(publications)),
-    nrow(talks), nrow(select_website_rows(talks))
+    "Validated %d publications (%d public) and %d talks (%d public, %d mapped). Wrote %d files to %s\n",
+    nrow(publications), nrow(built$publications),
+    nrow(talks), nrow(built$talks), length(built$geojson$features),
+    length(files), opts$output_dir
   ))
 
-  invisible(list(publications = publications, talks = talks, output_dir = opts$output_dir))
+  invisible(list(
+    publications = publications, talks = talks, built = built,
+    output_dir = opts$output_dir
+  ))
 }
 
 if (sys.nframe() == 0L) {

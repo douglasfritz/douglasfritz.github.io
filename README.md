@@ -27,12 +27,32 @@ Rscript scripts/build_data.R [--publications P --talks T --output-dir D]
 ```
 
 `scripts/build_data.R` reads the Publications and Talks tabs of the public CV sheet, normalizes
-them, and validates them. Only rows whose `website_include` is exactly `Y` are public. It exits
-nonzero, naming each bad record, if a source cannot be read or a record fails validation.
-Gaps that do not block publication, such as a missing summary or a talk without coordinates,
-are printed as `WARNING:` lines. Options:
+them, validates them, and writes the public site data. Only rows whose `website_include` is
+exactly `Y` are public, and only an explicit allowlist of fields is exported. It exits nonzero,
+naming each bad record, if a source cannot be read, a record fails validation, or either tab has
+no public rows; in that case no file is written. Gaps that do not block publication, such as a
+missing summary or a talk without coordinates, are printed as `WARNING:` lines. Options:
 
-- `--publications P`, `--talks T`: read local CSV files instead of the sheet (for example
-  `tests/fixtures/journal_articles.csv` and `tests/fixtures/conferences.csv`).
-- `--output-dir D`: where generated data goes (default `data/generated`). The script does not
-  write data files yet.
+- `--publications P`, `--talks T`: read local CSV files instead of the sheet.
+- `--output-dir D`: where generated data goes (default `data/generated`).
+
+```bash
+Rscript scripts/build_data.R            # build from the live public sheet (what CI does)
+Rscript scripts/build_data.R --publications tests/fixtures/journal_articles.csv --talks tests/fixtures/conferences.csv
+                                        # offline build from the synthetic fixtures, for local previews
+```
+
+Both write five files into `data/generated/`:
+
+| File | Contents |
+|---|---|
+| `publications.yml` | Public publications, newest first, for the publication listing |
+| `talks.yml` | Public talks, newest first, for the talk listing |
+| `talks.geojson` | A GeoJSON FeatureCollection of the talks that have coordinates (virtual talks sit at their host) |
+| `pillars.json` | Per research pillar: publication and talk counts, record keys, and representative records |
+| `build-metadata.json` | Build time, schema version, source tab names, and source and public row counts |
+
+All five files are prepared before any is written, then replace the previous build together. A
+failed build leaves the previous files as they were. Generated data is not committed:
+`data/generated/` is git-ignored apart from its `.gitkeep` placeholder. CI builds it from the live
+sheet, and locally you build it from the fixtures (or the sheet) before previewing.

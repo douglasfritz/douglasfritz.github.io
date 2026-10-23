@@ -1,0 +1,16 @@
+{
+  "type": "Feature",
+  "geometry": {
+    "type": "Point",
+    "coordinates": [151.1111, -33.3333]
+  },
+  "properties": {
+    "key": "talk-2",
+    "title": "Virtual fixture talk hosted by an imaginary institute",
+    "organization": "Example Institute of Health",
+    "location": "Fixtureville, South Example, Testonia",
+    "virtual_status": "Y",
+    "primary_pillar": "Quantitative and experimental biomedical discovery",
+    "year": 2024
+  }
+}
