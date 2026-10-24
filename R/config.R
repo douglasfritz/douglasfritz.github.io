@@ -50,7 +50,8 @@ site_config <- list(
     talks = c("foundational_work", "presented_by_me", "virtual_status")
   ),
 
-  # Link fields whose nonblank values must be https:// or mailto: (spec 16).
+  # Link fields whose nonblank values must be valid https:// or mailto: URLs
+  # (spec 16; rules in is_valid_link_url()).
   url_fields = list(
     publications = "doi_url",
     talks = c("event_url", "slides_url", "poster_url", "recording_url")

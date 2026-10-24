@@ -172,6 +172,52 @@ test_that("invalid source data exits nonzero naming the record", {
   expect_false(dir.exists(output_dir))
 })
 
+test_that("a malformed publication link exits nonzero naming the record and never creates the output", {
+  publications <- fixture_sources()$publications
+  expect_equal(publications$website_include[1], "Y")
+  publications$doi_url[1] <- "https://doi:10.1016/j.example.0001"
+  bad_csv <- tempfile(fileext = ".csv")
+  readr::write_csv(publications, bad_csv, na = "")
+  output_dir <- tempfile("site-data-")
+
+  result <- run_build_script(c(
+    "--publications", bad_csv,
+    "--talks", fixture_file("conferences.csv"),
+    "--output-dir", output_dir
+  ))
+  expect_false(result$status == 0L)
+  expect_match(
+    result$stderr,
+    'publications: pub-1: doi_url is not a valid URL: "https://doi:10.1016/j.example.0001"',
+    fixed = TRUE
+  )
+  expect_false(dir.exists(output_dir))
+})
+
+test_that("a malformed talk link exits nonzero and leaves the previous output unchanged", {
+  talks <- fixture_sources()$talks
+  expect_equal(talks$website_include[1], "Y")
+  talks$slides_url[1] <- "https://example"
+  bad_csv <- tempfile(fileext = ".csv")
+  readr::write_csv(talks, bad_csv, na = "")
+  output_dir <- withr::local_tempdir()
+  writeLines("previous build", file.path(output_dir, "talks.yml"))
+
+  result <- run_build_script(c(
+    "--publications", fixture_file("journal_articles.csv"),
+    "--talks", bad_csv,
+    "--output-dir", output_dir
+  ))
+  expect_false(result$status == 0L)
+  expect_match(
+    result$stderr,
+    'talks: talk-1: slides_url is not a valid URL: "https://example"',
+    fixed = TRUE
+  )
+  expect_identical(list.files(output_dir, all.files = TRUE, no.. = TRUE), "talks.yml")
+  expect_identical(readLines(file.path(output_dir, "talks.yml")), "previous build")
+})
+
 test_that("import reads every column as text, keeping leading zeros and blanks", {
   csv <- tempfile(fileext = ".csv")
   writeLines(c("key,year,latitude,website_include", "007,2025,1.50,"), csv)

@@ -76,20 +76,47 @@ check_pillars <- function(x) {
   )
 }
 
-# Links the site may publish: https:// followed by a host, or mailto:, with no
-# whitespace. Everything else (http:, javascript:, scheme-less) is rejected.
-is_allowed_url <- function(x) {
-  stringr::str_detect(x, "^(https://[^/\\s]|mailto:\\S)") & !stringr::str_detect(x, "\\s")
+# Link URL rules (README, "Link URLs"). Pure string checks, no network access.
+
+# TRUE for a DNS host name: two or more dot-separated labels of 1-63 letters,
+# digits or hyphens (Unicode letters are allowed for internationalised names),
+# no label starting or ending with a hyphen, and a last label that is not all
+# digits. This rejects bare names (`localhost`), IPv4 addresses, empty labels
+# and userinfo (`user@host`). NA in, NA out.
+is_dns_host <- function(host) {
+  label <- "[\\p{L}\\p{M}0-9](?:[\\p{L}\\p{M}0-9-]{0,61}[\\p{L}\\p{M}0-9])?"
+  stringr::str_detect(host, paste0("^(?:", label, "\\.)+", label, "$")) &
+    !stringr::str_detect(host, "\\.[0-9]+$")
 }
 
+# TRUE for `host` or `host:port` with a numeric port of 1-65535. This is what
+# makes `doi:10.1016` (from a mistyped `https://doi:10.1016/...`) invalid.
+is_valid_authority <- function(authority) {
+  parts <- stringr::str_match(authority, "^([^:]*)(?::([0-9]{1,5}))?$")
+  port <- as.integer(parts[, 3])
+  is_dns_host(parts[, 2]) & (is.na(port) | (port >= 1L & port <= 65535L))
+}
+
+# Links the site may publish: one token (no whitespace, control or invisible
+# characters) that is either https://host[:port][/path][?query][#fragment]
+# without userinfo, or mailto:local@host[?query]. Everything else (http:,
+# javascript:, scheme-less, malformed hosts) is invalid. NA input is not valid.
+is_valid_link_url <- function(x) {
+  one_token <- !stringr::str_detect(x, "[\\s\\p{C}]")
+  https_authority <- stringr::str_match(x, "^https://([^/?#]*)(?:[/?#].*)?$")[, 2]
+  mailto_host <- stringr::str_match(
+    x, "^mailto:[A-Za-z0-9_%+-]+(?:\\.[A-Za-z0-9_%+-]+)*@([^?]*)(?:\\?.*)?$"
+  )[, 2]
+  (one_token & (is_valid_authority(https_authority) | is_dns_host(mailto_host))) %in% TRUE
+}
+
+# Nonblank link fields must be valid URLs; blanks are optional (a missing link
+# only produces a build warning).
 check_urls <- function(x, fields) {
   as.character(unlist(lapply(fields, function(field) {
     value <- x[[field]]
-    bad <- !is.na(value) & !is_allowed_url(value)
-    sprintf(
-      "%s has a disallowed URL in %s: '%s' (only https:// and mailto: links are allowed)",
-      record_ids(x)[bad], field, value[bad]
-    )
+    bad <- !is.na(value) & !is_valid_link_url(value)
+    sprintf('%s: %s is not a valid URL: "%s"', record_ids(x)[bad], field, value[bad])
   })))
 }
 
