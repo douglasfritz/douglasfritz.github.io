@@ -219,13 +219,28 @@ test("marker keys follow every filter change, combined filters and reset", { tag
   }
 });
 
+// The zoom levels of the tiles on the map (tile URLs end /{z}/{x}/{y}.png).
+const tileZooms = (page) => page.locator("#talk-map-canvas img.leaflet-tile").evaluateAll((nodes) =>
+  [...new Set(nodes.map((node) => /\/(\d+)\/\d+\/\d+\.png$/.exec(node.src)?.[1] ?? node.src))].sort());
+
 test("an empty result leaves no markers, a world view and a note", { tag: "@js" }, async ({ page }) => {
   await openMap(page);
+  // First a view fitted to one talk, zoomed well in from the world view.
+  const single = features.find((feature) => shownByDefault.includes(feature.properties.key));
+  if (!liveData) expect(single).toBeTruthy();
+  if (single) {
+    await applyFilters(page, { text: single.properties.title });
+    expect(await expectSynced(page)).toContain(single.properties.key);
+    await expect.poll(async () => (await tileZooms(page)).length, { message: "one tile zoom level" }).toBe(1);
+    expect(await tileZooms(page), "fitted, not the world view").not.toEqual(["1"]);
+  }
   await applyFilters(page, { text: "zz-no-such-talk-qq" });
   expect(await expectSynced(page)).toEqual([]);
   await expect(page.locator("#talk-map-coverage")).toHaveText("No talks are listed, so the map shows no markers.");
   await expect(canvas(page)).toBeVisible();
   await expect(page.locator("#talk-map-canvas .leaflet-tile-loaded").first()).toBeVisible();
+  // The world view (zoom 1), not the previous markers' view.
+  await expect.poll(() => tileZooms(page), { message: "every tile is a world-view (zoom 1) tile" }).toEqual(["1"]);
 });
 
 test("filtered links open the map with exactly those markers from the start", { tag: "@js" }, async ({ page }) => {
@@ -550,6 +565,7 @@ test("Tab moves into the map, through its controls and out again, with a visible
   await page.keyboard.press("Tab");
   await expect(canvas(page)).toBeFocused();
   const visited = [];
+  let left = false;
   for (let step = 0; step < 60; step += 1) {
     const focused = await page.evaluate(() => {
       const node = document.activeElement;
@@ -567,12 +583,15 @@ test("Tab moves into the map, through its controls and out again, with a visible
     });
     if (!focused.inMap) {
       expect(focused.kind, "focus leaves the map for the next link").toBe("View talks as a list");
+      left = true;
       break;
     }
     visited.push(focused.kind);
     expect(focused.outline, `focus ring on ${focused.kind}`).toBe("solid 3px rgb(37, 50, 55)");
     await page.keyboard.press("Tab");
   }
+  // No keyboard trap: Tab reached the link after the map within 60 presses.
+  expect(left, "Tab leaves the map").toBe(true);
   expect(visited[0]).toBe("map");
   expect(visited).toContain("zoom-in");
   expect(visited).toContain("zoom-out");
