@@ -82,29 +82,37 @@ const DATA_DERIVED = [
   ".pillar-topics" // pillar component: topic tags
 ].join(", ");
 
-// The current page's site-authored text, link targets and metadata, read
-// with the data-derived regions hidden; and what in them looks like contact
-// details: phone- or email-like text, mailto:/tel: links, a link to the
-// private sheet.
+// What on the current page looks like contact details or the private sheet:
+// - in site-authored content only (read with the data-derived regions
+//   hidden): phone- or email-like text, email-like link targets or metadata,
+//   mailto:/tel: links;
+// - anywhere on the page, data-derived regions included: a link to, or the
+//   address of, the private source sheet.
+const PRIVATE_SHEET = /[^\s"'<>()[\]{},]*docs\.google\.com\/spreadsheets[^\s"'<>()[\]{},]*/g;
 async function contactLeaks(page) {
   const seen = await page.evaluate((selectors) => {
+    const valueOf = (node) => node.getAttribute("href") ?? node.getAttribute("src") ?? node.getAttribute("content");
+    const nodes = [...document.querySelectorAll("[href], [src], meta[content]")];
+    const allText = document.documentElement.textContent;
     const hide = document.createElement("style");
     hide.textContent = `${selectors} { display: none !important; }`;
     document.head.append(hide);
     const metadata = [...document.querySelectorAll('meta[name="description"], meta[property^="og:"], meta[name^="twitter:"]')].map((node) => node.getAttribute("content"));
     const text = [document.title, ...metadata, document.body.innerText].join("\n");
     hide.remove();
-    const values = [...document.querySelectorAll("[href], [src], meta[content]")]
-      .filter((node) => node.closest(selectors) === null)
-      .map((node) => node.getAttribute("href") ?? node.getAttribute("src") ?? node.getAttribute("content"));
-    return { text, values };
+    return {
+      text,
+      values: nodes.filter((node) => node.closest(selectors) === null).map(valueOf),
+      allValues: nodes.map(valueOf),
+      allText
+    };
   }, DATA_DERIVED);
   const findings = [
     ...phoneLike(seen.text).map((match) => `phone-like text: ${match}`),
     ...emailLike(seen.text).map((match) => `email-like text: ${match}`),
     ...seen.values.flatMap(emailLike).map((match) => `email-like link or metadata: ${match}`),
     ...seen.values.filter((value) => /^(mailto|tel):/i.test(value)).map((value) => `contact link: ${value}`),
-    ...seen.values.filter((value) => /docs\.google\.com\/spreadsheets/.test(value)).map((value) => `private sheet: ${value}`)
+    ...[...new Set([...seen.allValues, seen.allText].flatMap((value) => String(value).match(PRIVATE_SHEET) ?? []))].map((match) => `private sheet: ${match}`)
   ];
   return { findings, text: seen.text };
 }
@@ -513,46 +521,77 @@ const FAKE = {
 // Realistic DOI shapes and titles with digits, as spreadsheet data.
 const DOIS = ["10.1016/j.cell.2020.04.015", "10.1073/pnas.1912345116", "10.1038/s41586-020-2012-7"];
 const DIGIT_TITLE = "Trial 2020-2021 outcomes 1912345116";
+const DIGIT_JOURNAL = "Journal 2020 0415 0001";
+const DIGIT_HOST = "Example Institute 0000 111222";
+const FAKE_SHEET = "https://docs.google.com/spreadsheets/d/FAKE";
 const SCRATCH_ORIGIN = "https://scope.example";
 const SCRATCH_FILES = [
   "_pillars.qmd", "R/config.R", "R/pillar_cards.R", "R/site_summary.R", "data/site.yml", "data/pillar-copy.yml",
   "includes/person-jsonld.html", "js", "assets/images", "styles"
 ];
 const SCRATCH_OPTIONS = { resources: ["js/*.js", "assets/images/*", "assets/vendor/**", "data/generated/talks.geojson"], theme: "styles/styles.scss", renv: true };
+// The canonical pillar names, from the site's own copy file (not the data).
+const SCOPE_PILLARS = Object.keys(loadYaml(readFileSync(path.join(repoRoot, "data", "pillar-copy.yml"), "utf8")));
+
+// Fully synthetic public data, independent of data/generated/ (fixture or
+// live): its own keys, titles, DOI labels, mailto: links, a link to a fake
+// copy of the private sheet, and pillar assignments that put the digit title
+// in Home's Selected work, in Pillar 1's outputs and on an archive card.
+function scopeData() {
+  const publication = (key, year, extra) => ({
+    key, slug: key, status: "Published", author: "Doe, J.", year, journal: "Journal of Example Science",
+    primary_pillar: SCOPE_PILLARS[0], topic_tags: [], foundational_work: "N", ...extra
+  });
+  // Archive order: year, newest first.
+  const publications = [
+    publication("scope-pub-2", 2026, { status: "In Review", title: "Imaginary cohort follow-up", author: `Roe, R.; Ward ${"0".repeat(5)} ${"0".repeat(6)}`, doi_url: `https://doi.org/${DOIS[1]}`, primary_pillar: SCOPE_PILLARS[1] }),
+    publication("scope-pub-1", 2025, { title: DIGIT_TITLE, journal: DIGIT_JOURNAL, doi_url: `https://doi.org/${DOIS[0]}`, featured: "Y" }),
+    publication("scope-pub-4", 2024, { title: "Correspondence 0000 111 2222", doi_url: `mailto:${FAKE.linkEmail}`, primary_pillar: SCOPE_PILLARS[2] }),
+    publication("scope-pub-5", 2023, { title: "Record that links a spreadsheet", doi_url: FAKE_SHEET, primary_pillar: SCOPE_PILLARS[2] }),
+    publication("scope-pub-3", 2016, { title: "Foundational imaginary assay", doi_url: `https://doi.org/${DOIS[2]}`, primary_pillar: SCOPE_PILLARS[3], foundational_work: "Y" })
+  ];
+  const talk = (key, date, extra) => ({
+    key, slug: key, author: "Doe, J.", date, year: Number(date.slice(0, 4)), type: "Invited talk",
+    presented_by_me: "Y", topic_tags: [], foundational_work: "N", virtual_status: "N", event_scope: "national", ...extra
+  });
+  const talks = [
+    talk("scope-talk-1", "2025-09-14", {
+      title: DIGIT_TITLE, organization: "Example University", featured: "Y", primary_pillar: SCOPE_PILLARS[0],
+      location_city: "Sampleton", location_country: "Exampleland", location_display: "Sampleton, Exampleland",
+      latitude: 12.3456, longitude: 45.6789, slides_url: `mailto:${FAKE.linkEmail}`
+    }),
+    talk("scope-talk-2", "2024-05-02", {
+      title: "Remote seminar on imaginary data", organization: DIGIT_HOST, primary_pillar: SCOPE_PILLARS[1],
+      location_country: "Testonia", location_display: "Testonia", virtual_status: "Y"
+    })
+  ];
+  const kind = (records, number) => {
+    const keys = records.filter((record) => record.primary_pillar === SCOPE_PILLARS[number - 1]).map((record) => record.key);
+    return { primary: keys.length, any: keys.length, keys, representative: keys.slice(0, 3), representative_secondary: 0 };
+  };
+  const pillars = Object.fromEntries(SCOPE_PILLARS.map((name, i) => [name, {
+    number: i + 1, publications: kind(publications, i + 1), talks: kind(talks, i + 1), topic_tags: []
+  }]));
+  const geojson = {
+    type: "FeatureCollection",
+    features: talks.filter((record) => record.latitude !== undefined).map((record) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [record.longitude, record.latitude] },
+      properties: { key: record.key, title: record.title, organization: record.organization, location: record.location_display, virtual_status: record.virtual_status, primary_pillar: record.primary_pillar, year: record.year }
+    }))
+  };
+  return { "publications.yml": publications, "talks.yml": talks, "pillars.json": pillars, "talks.geojson": geojson };
+}
 
 test.describe("contact-leak scan: data-derived text is out of scope", () => {
   let scratch;
-  // The fixture data with DOI labels, titles, a journal, an author and an
-  // organisation that look like phone numbers, and mailto: links, on records
-  // that Selected work and the pillar outputs show.
-  const scratchPublications = () => {
-    const records = structuredClone(publications);
-    const byKey = (key) => records.find((record) => record.key === key);
-    Object.assign(byKey("pub-1"), { title: DIGIT_TITLE, doi_url: `https://doi.org/${DOIS[0]}`, journal: "Journal 2020 0415 0001" });
-    Object.assign(byKey("pub-2"), { doi_url: `https://doi.org/${DOIS[1]}`, author: `Roe, R.; Ward ${"0".repeat(5)} ${"0".repeat(6)}` });
-    Object.assign(byKey("pub-5"), { doi_url: `https://doi.org/${DOIS[2]}` });
-    records.push({ ...byKey("pub-2"), key: "pub-6", slug: "pub-6", title: "Correspondence 0000 111 2222", doi_url: `mailto:${FAKE.linkEmail}` });
-    return records;
-  };
-  const scratchTalks = () => {
-    const records = structuredClone(talks);
-    const byKey = (key) => records.find((record) => record.key === key);
-    Object.assign(byKey("talk-1"), { title: DIGIT_TITLE, slides_url: `mailto:${FAKE.linkEmail}` });
-    Object.assign(byKey("talk-2"), { organization: "Example Institute 0000 111222" });
-    return records;
-  };
 
   test.beforeAll(async ({}, testInfo) => {
     testInfo.setTimeout(300_000);
     scratch = renderScratchSite(
       "contact-scope-data-",
       ["index.qmd", "research/index.qmd", "publications/index.qmd", "talks/index.qmd", "templates", "assets/vendor", ...SCRATCH_FILES],
-      {
-        "publications.yml": scratchPublications(),
-        "talks.yml": scratchTalks(),
-        "pillars.json": JSON.parse(readGenerated("pillars.json")),
-        "talks.geojson": JSON.parse(readGenerated("talks.geojson"))
-      },
+      scopeData(),
       SCRATCH_OPTIONS
     );
   });
@@ -561,12 +600,12 @@ test.describe("contact-leak scan: data-derived text is out of scope", () => {
     if (scratch) rmSync(scratch, { recursive: true, force: true });
   });
 
-  test("DOI labels, digit titles and mailto: links in spreadsheet text do not fail the scan", async ({ page }) => {
+  test("DOI labels, digit titles and mailto: links in spreadsheet text do not fail the scan; a sheet link does", async ({ page }) => {
     await routeScratchSite(page, scratch, SCRATCH_ORIGIN);
     const shown = {
-      "/publications/": [...DOIS.map((doi) => `DOI ${doi}`), DIGIT_TITLE, "Journal 2020 0415 0001", `Email ${FAKE.linkEmail}`],
-      "/talks/": [DIGIT_TITLE, "Example Institute 0000 111222"],
-      "/": [DIGIT_TITLE, "Journal 2020 0415 0001"],
+      "/publications/": [...DOIS.map((doi) => `DOI ${doi}`), DIGIT_TITLE, DIGIT_JOURNAL, `Email ${FAKE.linkEmail}`],
+      "/talks/": [DIGIT_TITLE, DIGIT_HOST],
+      "/": [DIGIT_TITLE, DIGIT_JOURNAL],
       "/research/": [DIGIT_TITLE]
     };
     for (const [route, strings] of Object.entries(shown)) {
@@ -581,14 +620,22 @@ test.describe("contact-leak scan: data-derived text is out of scope", () => {
       const html = await page.content();
       for (const string of strings) expect(`${body}\n${html}`, `${route}: ${string}`).toContain(string);
       expect(phoneLike(body).length, route).toBeGreaterThan(0);
-      // ... but it is spreadsheet text, outside the scan.
+      // ... but it is spreadsheet text, outside the contact scan. The
+      // private-sheet check is global: the publication that links a sheet is
+      // reported, from inside the archive listing.
       const { findings } = await contactLeaks(page);
-      expect(findings, route).toEqual([]);
+      expect(findings, route).toEqual(route === "/publications/" ? [`private sheet: ${FAKE_SHEET}`] : []);
     }
-    // The publication links themselves: the three DOIs and the mailto: one.
+    // The publication links themselves: the three DOIs, the mailto: one and
+    // the sheet link, all inside the data-derived listing.
     await page.goto(`${SCRATCH_ORIGIN}/publications/`);
-    for (const doi of DOIS) await expect(page.locator(`a[href="https://doi.org/${doi}"]`)).toHaveCount(1);
-    await expect(page.locator(`a[href="mailto:${FAKE.linkEmail}"]`)).toHaveCount(1);
+    for (const doi of DOIS) await expect(page.locator(`.quarto-listing a[href="https://doi.org/${doi}"]`)).toHaveCount(1);
+    await expect(page.locator(`.quarto-listing a[href="mailto:${FAKE.linkEmail}"]`)).toHaveCount(1);
+    await expect(page.locator(`.quarto-listing a[href="${FAKE_SHEET}"]`)).toHaveCount(1);
+    // The digit title is on Home's Selected work and in Pillar 1's outputs.
+    await page.goto(`${SCRATCH_ORIGIN}/`);
+    await expect(page.locator("#selected-work [data-key=\"scope-pub-1\"]")).toContainText(DIGIT_TITLE);
+    await expect(page.locator('#pillar-1-panel [data-pillar-outputs="publications"] [data-key="scope-pub-1"]')).toContainText(DIGIT_TITLE);
   });
 });
 
@@ -603,7 +650,7 @@ test.describe("contact-leak scan: site-authored text is in scope", () => {
     scratch = renderScratchSite(
       "contact-scope-authored-",
       SCRATCH_FILES,
-      { "publications.yml": publications, "talks.yml": talks },
+      {},
       {
         ...SCRATCH_OPTIONS,
         website: [
@@ -615,7 +662,7 @@ test.describe("contact-leak scan: site-authored text is in scope", () => {
           `  center: "Write to ${FAKE.footerEmail} or [ring](tel:000) us"`
         ],
         write: {
-          "about/index.qmd": `${about}\nCall me on ${FAKE.prosePhone}, write to ${FAKE.proseEmail} or [send a message](mailto:${FAKE.linkEmail}).\n`
+          "about/index.qmd": `${about}\nCall me on ${FAKE.prosePhone}, write to ${FAKE.proseEmail} or [send a message](mailto:${FAKE.linkEmail}). The sheet: ${FAKE_SHEET}/prose\n`
         }
       }
     );
@@ -637,7 +684,8 @@ test.describe("contact-leak scan: site-authored text is in scope", () => {
       `email-like text: ${FAKE.footerEmail}`,
       `email-like link or metadata: ${FAKE.linkEmail}`,
       `contact link: mailto:${FAKE.linkEmail}`,
-      "contact link: tel:000"
+      "contact link: tel:000",
+      `private sheet: ${FAKE_SHEET}/prose`
     ]));
   });
 });
