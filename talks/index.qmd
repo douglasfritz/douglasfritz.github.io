@@ -1,5 +1,39 @@
 ---
 title: "Talks & Reach"
+description: "Douglas Fritz's talks and posters, newest first, with where each was hosted, its research pillars and links to any public event page, slides, poster or recording."
+# Card titles are not sections: no "#" anchor links on them.
+anchor-sections: false
+include-in-header:
+  text: <script type="module" src="../js/archive-filters.js"></script>
+listing:
+  id: talks
+  contents: ../data/generated/talks.yml
+  template: ../templates/talk.ejs.md
+  # Keep the generated order (date, newest first, then title and key) and
+  # render every record: no Quarto sorting, paging, filtering, categories or
+  # feed. js/archive-filters.js does the filtering.
+  sort: false
+  page-size: 100000
+  filter-ui: false
+  sort-ui: false
+  categories: false
+  feed: false
+  # Quarto reformats the `date` field of listing items; this keeps it ISO
+  # (YYYY-MM-DD), and the template writes the readable date itself.
+  date-format: "YYYY-MM-DD"
+  template-params:
+    # Canonical pillar order (R/config.R); sets each pillar's number.
+    pillars:
+      - "Infectious-disease biology, evolution and environment"
+      - "Quantitative and experimental biomedical discovery"
+      - "Clinical translation and health-system improvement"
+      - "Climate and planetary health in medicine"
+    # Canonical event scopes, smallest first (R/config.R).
+    scopes:
+      - "local"
+      - "regional"
+      - "national"
+      - "international"
 ---
 
-This page will pair an archive of Douglas Fritz's talks with a conference map.
+On this page, *reach* means the documented places and institutions that hosted these talks, and the public materials that go with them. An in-person talk is listed at its event location. A virtual talk is listed at its host's location and marked **Virtual**: it does not imply travel. The summary counts presentations, countries, cities, hosts, public links and years only. It makes no claim about audience size or impact.

@@ -12,9 +12,14 @@ a { text-underline-offset: 0.18em; }
 // outline:0 + translucent box-shadow focus styles, which have higher specificity.
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible,
 .nav-link:focus-visible, .navbar-toggler:focus-visible,
-.form-control:focus-visible, .form-select:focus-visible {
+.form-control:focus-visible, .form-select:focus-visible,
+[tabindex="-1"]:focus-visible {
   outline: $focus-ring;
   outline-offset: $focus-ring-offset;
   box-shadow: none;
 }
 .page-columns { max-width: 1180px; margin-inline: auto; }
+// Quarto's smooth-scroll option sets scroll-behavior unconditionally.
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+}

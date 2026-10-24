@@ -3,49 +3,32 @@
 // runs on the synthetic fixtures (locally) and on the live sheet (CI).
 // Set E2E_DATA=live when the data comes from the live sheet: it relaxes only the
 // coverage checks that depend on the sheet's content (an In Review record, a
-// secondary pillar); every per-record assertion still runs.
-import { test as base, expect } from "@playwright/test";
-import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { dump as dumpYaml, load as loadYaml } from "js-yaml";
-
-const root = fileURLToPath(new URL("../../", import.meta.url));
-
-function readGenerated(file) {
-  const target = path.join(root, "data", "generated", file);
-  if (!existsSync(target)) {
-    throw new Error(`Missing data/generated/${file}. Run \`npm run data:fixture\` (or the live data build) and \`quarto render\` first.`);
-  }
-  return readFileSync(target, "utf8");
-}
+// secondary pillar, a foundational record); every per-record assertion still runs.
+import { rmSync } from "node:fs";
+import { load as loadYaml } from "js-yaml";
+import {
+  asUrl,
+  cssString,
+  expect,
+  fold,
+  isLinkable,
+  liveData,
+  queryOf,
+  readGenerated,
+  renderScratchSite,
+  routeScratchSite,
+  searchTerm,
+  test
+} from "./support.mjs";
 
 const publications = loadYaml(readGenerated("publications.yml"));
 const metadata = JSON.parse(readGenerated("build-metadata.json"));
 const pillars = JSON.parse(readGenerated("pillars.json"));
-const liveData = process.env.E2E_DATA === "live";
 const PAGE = "/publications/";
-
-// Fails any test whose page reports a script error or a console error (for
-// example a module that did not load).
-const test = base.extend({
-  page: async ({ page }, use) => {
-    const errors = [];
-    page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
-    page.on("console", (message) => {
-      if (message.type() === "error") errors.push(`console.error: ${message.text()}`);
-    });
-    await use(page);
-    expect(errors, "script or console errors on the page").toEqual([]);
-  }
-});
+const INCLUDE = "include";
+const DEFAULT = {};
 
 // ---- Reference model, written independently of js/filter-core.js ----------
-
-const norm = (value) => String(value ?? "").replace(/\s+/g, " ").trim().normalize("NFKC").toLowerCase();
-const isLinkable = (url) => typeof url === "string" && /^(https:\/\/|mailto:)\S+$/.test(url);
 
 function preprintHref(doi) {
   if (typeof doi !== "string") return undefined;
@@ -54,39 +37,47 @@ function preprintHref(doi) {
   return undefined;
 }
 
-// Hrefs as the browser resolves them: Quarto percent-encodes characters such
-// as '"' in rendered links, which leaves the URL itself unchanged.
-const asUrl = (href) => new URL(href).href;
-
 function expectedHrefs(record) {
   return [isLinkable(record.doi_url) ? record.doi_url : undefined, preprintHref(record.preprint_doi)].filter(Boolean).map(asUrl);
 }
 
+// Foundational work (flag exactly "Y") is hidden unless foundational=include.
+const isFoundational = (record) => record.foundational_work === "Y";
+
 function referenceMatches(record, state) {
-  const text = norm([record.title, record.author, record.journal, ...record.topic_tags].join(" "));
-  const terms = norm(state.text).split(" ").filter(Boolean);
+  const text = fold([record.title, record.author, record.journal, ...record.topic_tags].join(" "));
+  const terms = fold(state.text).split(" ").filter(Boolean);
   return terms.every((term) => text.includes(term))
     && (!state.pillar || record.primary_pillar === state.pillar || record.secondary_pillar === state.pillar)
     && (!state.status || record.status === state.status)
-    && (!state.year || String(record.year) === state.year);
+    && (!state.year || String(record.year) === state.year)
+    && (state.foundational === INCLUDE || !isFoundational(record));
 }
 
 const expectedKeys = (records, state) => records.filter((record) => referenceMatches(record, state)).map((record) => record.key);
+const hiddenFoundational = (records, state) => (state.foundational === INCLUDE ? 0
+  : records.filter((record) => isFoundational(record) && referenceMatches(record, { ...state, foundational: INCLUDE })).length);
+
+function countText(records, state) {
+  const noun = (n) => (n === 1 ? "publication" : "publications");
+  const shown = expectedKeys(records, state).length;
+  const hidden = hiddenFoundational(records, state);
+  return `Showing ${shown} of ${records.length} ${noun(records.length)}${hidden > 0 ? ` (${hidden} foundational ${noun(hidden)} hidden)` : ""}`;
+}
 
 // ---- Page helpers -----------------------------------------------------------
 
-const cssString = (value) => `"${String(value).replace(/["\\]/g, "\\$&").replace(/\n/g, "\\a ")}"`;
 const cards = (page) => page.locator("article.publication-card");
 const card = (page, key) => page.locator(`article.publication-card[data-key=${cssString(key)}]`);
 const detail = (scope, label) => scope.locator(".record-detail").filter({ has: scope.page().locator("dt", { hasText: new RegExp(`^${label}$`) }) });
 const visibleKeys = (page) => page.locator("article.publication-card:visible").evaluateAll((nodes) => nodes.map((node) => node.dataset.key));
-const countText = (shown, total) => `Showing ${shown} of ${total} ${total === 1 ? "publication" : "publications"}`;
 
 const controls = (page) => ({
   text: page.getByLabel("Search publications"),
   pillar: page.getByLabel("Research pillar"),
   status: page.getByLabel("Status", { exact: true }),
-  year: page.getByLabel("Year", { exact: true })
+  year: page.getByLabel("Year", { exact: true }),
+  foundational: page.getByLabel("Include foundational work")
 });
 
 async function applyFilters(page, state) {
@@ -95,12 +86,15 @@ async function applyFilters(page, state) {
   await c.pillar.selectOption({ value: state.pillar ?? "" });
   await c.status.selectOption({ value: state.status ?? "" });
   await c.year.selectOption({ value: state.year ?? "" });
+  await c.foundational.setChecked(state.foundational === INCLUDE);
 }
 
-async function expectShown(page, keys, total = publications.length) {
+// Cards, result count and empty state match the reference for `state`.
+async function expectView(page, state, records = publications) {
+  const keys = expectedKeys(records, state);
   await expect(page.locator("article.publication-card:visible")).toHaveCount(keys.length);
   expect(await visibleKeys(page)).toEqual(keys);
-  await expect(page.locator("[data-archive-count]")).toHaveText(countText(keys.length, total));
+  await expect(page.locator("[data-archive-count]")).toHaveText(countText(records, state));
   if (keys.length === 0) await expect(page.locator("[data-archive-empty]")).toBeVisible();
   else await expect(page.locator("[data-archive-empty]")).toBeHidden();
 }
@@ -111,16 +105,8 @@ async function expectControls(page, state) {
   await expect(c.pillar).toHaveValue(state.pillar ?? "");
   await expect(c.status).toHaveValue(state.status ?? "");
   await expect(c.year).toHaveValue(state.year ?? "");
-}
-
-const queryOf = (page) => Object.fromEntries(new URL(page.url()).searchParams);
-
-// A word from the title, typed in a different case with stray spaces.
-function searchTerm(record) {
-  const words = norm(record.title).split(" ");
-  const word = [...words].sort((a, b) => b.length - a.length)[0];
-  const upper = word.toUpperCase();
-  return upper.toLowerCase() === word ? `  ${upper}  ` : word;
+  if (state.foundational === INCLUDE) await expect(c.foundational).toBeChecked();
+  else await expect(c.foundational).not.toBeChecked();
 }
 
 // ---- Tests on the static HTML (both projects) ------------------------------
@@ -134,9 +120,11 @@ test("the generated data exercises the cases these tests check", () => {
   expect(statuses.has("Published"), "data has a Published record").toBe(true);
   expect(new Set(publications.map((record) => record.year)).size, "data spans two or more years").toBeGreaterThanOrEqual(2);
   expect(new Set(publications.map((record) => record.primary_pillar)).size, "data spans two or more pillars").toBeGreaterThanOrEqual(2);
+  expect(publications.some((record) => !isFoundational(record)), "some publications are shown by default").toBe(true);
   if (!liveData) {
     expect(statuses.has("In Review"), "fixture data has an In Review record").toBe(true);
     expect(publications.some((record) => record.secondary_pillar), "fixture data has a secondary pillar").toBe(true);
+    expect(publications.some(isFoundational), "fixture data has a foundational publication").toBe(true);
   }
 });
 
@@ -148,7 +136,8 @@ test("every public publication is rendered exactly once, in archive order", asyn
 });
 
 test("cards show each record's metadata and only its available links", async ({ page }) => {
-  await page.goto(PAGE);
+  // Every card visible, foundational work included (a no-op without JavaScript).
+  await page.goto(`${PAGE}?foundational=include`);
   for (const record of publications) {
     const c = card(page, record.key);
     await expect(c).toHaveCount(1);
@@ -191,7 +180,8 @@ test("cards show each record's metadata and only its available links", async ({ 
 });
 
 test("In Review records carry the exact status and never look published", async ({ page }) => {
-  await page.goto(PAGE);
+  // Every card visible, foundational work included (a no-op without JavaScript).
+  await page.goto(`${PAGE}?foundational=include`);
   const inReview = publications.filter((record) => record.status === "In Review");
   await expect(page.locator('article.publication-card[data-status="In Review"]')).toHaveCount(inReview.length);
   await expect(page.locator(".status-badge.status-not-published")).toHaveCount(inReview.length);
@@ -242,11 +232,12 @@ test("ScholarlyArticle JSON-LD is emitted for Published records only", async ({ 
 
 // ---- Without JavaScript ------------------------------------------------------
 
-test("without JavaScript every publication is readable and linked, and no dead controls show", { tag: "@no-js" }, async ({ page }) => {
+test("without JavaScript every publication, foundational work included, is readable and linked, and no dead controls show", { tag: "@no-js" }, async ({ page }) => {
   // A filter query cannot hide anything without the script.
   await page.goto(`${PAGE}?status=Published&year=1900`);
   await expect(page.locator("form[data-archive-filters]")).toBeHidden();
   await expect(page.getByRole("searchbox")).toHaveCount(0);
+  await expect(page.getByRole("checkbox")).toHaveCount(0);
   await expect(page.locator("[data-archive-empty]")).toBeHidden();
   await expect(cards(page)).toHaveCount(publications.length);
   for (const record of publications) {
@@ -271,38 +262,65 @@ test("the script reveals labelled filters and a polite result count", { tag: "@j
   await expect(c.status.locator("option")).toHaveText(["All statuses", ...[...new Set(publications.map((r) => r.status))].sort()]);
   const years = [...new Set(publications.map((r) => String(r.year)))].sort((a, b) => Number(b) - Number(a));
   await expect(c.year.locator("option")).toHaveText(["All years", ...years]);
+  await expect(c.foundational).toHaveAttribute("type", "checkbox");
+  await expect(c.foundational).not.toBeChecked();
   const count = page.getByRole("status");
   await expect(count).toHaveAttribute("aria-live", "polite");
   await expect(count).toHaveAttribute("aria-atomic", "true");
-  await expectShown(page, publications.map((record) => record.key));
+  await expectView(page, DEFAULT);
   await expect(page.getByRole("button", { name: "Reset filters" })).toBeVisible();
+});
+
+test("foundational publications are hidden by default and revealed by their labelled checkbox", { tag: "@js" }, async ({ page }) => {
+  const foundational = publications.filter(isFoundational);
+  if (!liveData) expect(foundational.length, "fixture data has a foundational publication").toBeGreaterThan(0);
+  await page.goto(PAGE);
+  await expectView(page, DEFAULT);
+  for (const record of foundational) await expect(card(page, record.key)).toBeHidden();
+  if (foundational.length > 0) await expect(page.locator("[data-archive-count]")).toContainText(`(${foundational.length} foundational`);
+
+  await controls(page).foundational.check();
+  await expectView(page, { foundational: INCLUDE });
+  for (const record of foundational) await expect(card(page, record.key)).toBeVisible();
+  expect(queryOf(page)).toEqual({ foundational: INCLUDE });
+
+  await page.reload();
+  await expectControls(page, { foundational: INCLUDE });
+  await expectView(page, { foundational: INCLUDE });
+
+  await controls(page).foundational.uncheck();
+  await expectView(page, DEFAULT);
+  expect(new URL(page.url()).search).toBe("");
 });
 
 test("combined filters match the reference, survive a reload and reset", { tag: "@js" }, async ({ page }) => {
   const indexes = [...new Set([0, Math.floor((publications.length - 1) / 2), publications.length - 1])];
-  for (const record of indexes.map((index) => publications[index])) {
+  const sampled = new Set(indexes.map((index) => publications[index]));
+  const foundational = publications.find(isFoundational);
+  if (foundational) sampled.add(foundational);
+  for (const record of sampled) {
     const state = {
       text: searchTerm(record),
       pillar: record.secondary_pillar ?? record.primary_pillar,
       status: record.status,
-      year: String(record.year)
+      year: String(record.year),
+      ...(isFoundational(record) ? { foundational: INCLUDE } : {})
     };
-    const expected = expectedKeys(publications, state);
-    expect(expected, "the sampled record matches its own filters").toContain(record.key);
+    expect(expectedKeys(publications, state), "the sampled record matches its own filters").toContain(record.key);
 
     await page.goto(PAGE);
     await applyFilters(page, state);
-    await expectShown(page, expected);
+    await expectView(page, state);
     const canonical = { ...state, text: state.text.trim() };
     expect(queryOf(page)).toEqual(canonical);
 
     await page.reload();
     await expectControls(page, canonical);
-    await expectShown(page, expected);
+    await expectView(page, state);
 
     await page.getByRole("button", { name: "Reset filters" }).click();
-    await expectControls(page, {});
-    await expectShown(page, publications.map((r) => r.key));
+    await expectControls(page, DEFAULT);
+    await expectView(page, DEFAULT);
     expect(new URL(page.url()).search).toBe("");
   }
 });
@@ -317,14 +335,15 @@ test("each filter alone matches the reference", { tag: "@js" }, async ({ page })
     { text: publications[0].author.split(/[;,]/)[0] },
     // Every term must match, possibly in different fields.
     { text: `${publications[0].author.split(/[;,]/)[0]} ${searchTerm(publications[0])}` },
-    { text: `${searchTerm(publications[0])} zz-absent-term` }
+    { text: `${searchTerm(publications[0])} zz-absent-term` },
+    { foundational: INCLUDE }
   ];
   for (const state of states) {
     await applyFilters(page, state);
-    await expectShown(page, expectedKeys(publications, state));
+    await expectView(page, state);
   }
   // The pillar filter finds records through their secondary pillar.
-  const multi = publications.find((r) => r.secondary_pillar);
+  const multi = publications.find((r) => r.secondary_pillar && !isFoundational(r));
   if (multi) {
     await applyFilters(page, { pillar: multi.secondary_pillar });
     expect(await visibleKeys(page)).toContain(multi.key);
@@ -336,20 +355,20 @@ test("no matches shows the empty state, whose reset restores every record", { ta
   const state = { text: "zz-no-such-publication-qq" };
   expect(expectedKeys(publications, state)).toEqual([]);
   await applyFilters(page, state);
-  await expectShown(page, []);
+  await expectView(page, state);
   const empty = page.locator("[data-archive-empty]");
   await expect(empty).toContainText("No publications match");
   await empty.getByRole("button", { name: "Reset filters" }).click();
-  await expectShown(page, publications.map((r) => r.key));
+  await expectView(page, DEFAULT);
   await expect(controls(page).text).toBeFocused();
   expect(new URL(page.url()).search).toBe("");
 });
 
 test("query parameters set the filters; unknown keys and values are ignored", { tag: "@js" }, async ({ page }) => {
   const year = String(publications[0].year);
-  await page.goto(`${PAGE}?utm_source=x&year=${year}&pillar=Not%20a%20pillar&status=Bogus&foo=bar#publication-records`);
+  await page.goto(`${PAGE}?utm_source=x&year=${year}&pillar=Not%20a%20pillar&status=Bogus&foundational=yes&virtual=Y&foo=bar#publication-records`);
   await expectControls(page, { year });
-  await expectShown(page, expectedKeys(publications, { year }));
+  await expectView(page, { year });
   expect(new URL(page.url()).search).toBe(`?year=${year}`);
   expect(new URL(page.url()).hash).toBe("#publication-records");
 
@@ -357,13 +376,23 @@ test("query parameters set the filters; unknown keys and values are ignored", { 
   // Quarto highlights the term and removes q from the URL.
   await page.goto(`${PAGE}?q=${encodeURIComponent(searchTerm(publications[0]).trim())}&year=${year}`);
   await expectControls(page, { year });
-  await expectShown(page, expectedKeys(publications, { year }));
+  await expectView(page, { year });
   expect(new URL(page.url()).search).toBe(`?year=${year}`);
 
   await page.goto(`${PAGE}?unknown=1&text=`);
-  await expectControls(page, {});
-  await expectShown(page, publications.map((r) => r.key));
+  await expectControls(page, DEFAULT);
+  await expectView(page, DEFAULT);
   expect(new URL(page.url()).search).toBe("");
+});
+
+test("in-page links to the archive raise no script errors", { tag: "@js" }, async ({ page }) => {
+  await page.goto(PAGE);
+  // A hash change re-runs Quarto's listing script; the test fixture fails on
+  // any page error.
+  await page.evaluate(() => { window.location.hash = "publication-records"; });
+  await expect(page).toHaveURL(/#publication-records$/);
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
+  await expectView(page, DEFAULT);
 });
 
 test("filters work from the keyboard with a visible focus ring", { tag: "@js" }, async ({ page }) => {
@@ -372,8 +401,8 @@ test("filters work from the keyboard with a visible focus ring", { tag: "@js" },
   await c.text.focus();
   const term = searchTerm(publications[0]);
   await page.keyboard.type(term);
-  await expectShown(page, expectedKeys(publications, { text: term }));
-  for (const control of [c.text, c.pillar, c.status, c.year]) {
+  await expectView(page, { text: term });
+  for (const control of [c.text, c.pillar, c.status, c.year, c.foundational]) {
     await expect(control).toBeFocused();
     await expect(control).toHaveCSS("outline-style", "solid");
     await expect(control).toHaveCSS("outline-width", "3px");
@@ -383,7 +412,7 @@ test("filters work from the keyboard with a visible focus ring", { tag: "@js" },
   await expect(reset).toBeFocused();
   await expect(reset).toHaveCSS("outline-width", "3px");
   await page.keyboard.press("Enter");
-  await expectShown(page, publications.map((r) => r.key));
+  await expectView(page, DEFAULT);
 });
 
 // ---- Template escaping (a synthetic hostile record, rendered separately) ----
@@ -428,17 +457,7 @@ test.describe("template escaping", { tag: "@js" }, () => {
 
   test.beforeAll(async ({}, testInfo) => {
     testInfo.setTimeout(300_000);
-    scratch = mkdtempSync(path.join(tmpdir(), "publication-template-"));
-    for (const dir of ["publications", "templates", "js", path.join("data", "generated")]) mkdirSync(path.join(scratch, dir), { recursive: true });
-    writeFileSync(path.join(scratch, "_quarto.yml"), [
-      "project:", "  type: website", "  render:", '    - "*.qmd"', "  resources:", '    - "js/*.js"',
-      "format:", "  html:", "    html-math-method: plain", ""
-    ].join("\n"));
-    for (const file of ["publications/index.qmd", "templates/publication.ejs.md", "js/archive-filters.js", "js/filter-core.js"]) {
-      copyFileSync(path.join(root, file), path.join(scratch, file));
-    }
-    writeFileSync(path.join(scratch, "data", "generated", "publications.yml"), dumpYaml(hostile, { forceQuotes: true, quotingType: '"' }));
-    execFileSync(process.env.QUARTO ?? "quarto", ["render", "--quiet"], { cwd: scratch, stdio: "pipe" });
+    scratch = renderScratchSite("publication-template-", ["publications/index.qmd", "templates/publication.ejs.md", "js/archive-filters.js", "js/filter-core.js"], { "publications.yml": hostile });
   });
 
   test.afterAll(() => {
@@ -446,13 +465,7 @@ test.describe("template escaping", { tag: "@js" }, () => {
   });
 
   test("hostile text renders as text, never as markup, script or a link", async ({ page }) => {
-    const site = path.join(scratch, "_site");
-    await page.route(`${origin}/**`, (route) => {
-      const { pathname } = new URL(route.request().url());
-      const file = path.join(site, decodeURIComponent(pathname), pathname.endsWith("/") ? "index.html" : "");
-      if (!file.startsWith(site) || !existsSync(file)) return route.fulfill({ status: 404, body: "" });
-      return route.fulfill({ path: file });
-    });
+    await routeScratchSite(page, scratch, origin);
     await page.goto(`${origin}${PAGE}`);
     await expect(page.locator("form[data-archive-filters]")).toBeVisible();
 
@@ -484,8 +497,10 @@ test.describe("template escaping", { tag: "@js" }, () => {
     }
 
     // The enhancement script reads the same text without turning it into markup.
+    await expectView(page, DEFAULT, hostile);
     await controls(page).text.fill("after fence");
-    await expectShown(page, [hostile[0].key], hostile.length);
+    await expectView(page, { text: "after fence" }, hostile);
+    expect(await visibleKeys(page)).toEqual([hostile[0].key]);
     expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
   });
 });

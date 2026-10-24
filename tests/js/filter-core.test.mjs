@@ -5,6 +5,7 @@ import {
   matchesRecord,
   normalizeText,
   parseFilterQuery,
+  prepareRecord,
   sanitizeFilterState,
   serializeFilterQuery
 } from "../../js/filter-core.js";
@@ -13,7 +14,9 @@ const P1 = "Infectious-disease biology, evolution and environment";
 const P2 = "Quantitative and experimental biomedical discovery";
 const P3 = "Clinical translation and health-system improvement";
 
-const record = {
+// Records go through prepareRecord (which folds the search text once), as
+// js/archive-filters.js does when it reads the cards.
+const record = prepareRecord({
   key: "pub-1",
   search: "dengue viral fitness",
   primaryPillar: P1,
@@ -21,7 +24,7 @@ const record = {
   status: "In Review",
   year: "2026",
   foundational: "N"
-};
+});
 
 // Options as the publication page offers them: text is free text, the selects
 // accept only their listed values.
@@ -57,13 +60,37 @@ test("the pillar facet matches the primary or the secondary pillar", () => {
 });
 
 test("text search is case-insensitive, whitespace-normalized and needs every term", () => {
-  const titled = { ...record, search: "A Synthetic  Study of\nExample PATHOGENS  Doe, J. tag-alpha" };
+  const titled = prepareRecord({ ...record, search: "A Synthetic  Study of\nExample PATHOGENS  Doe, J. tag-alpha" });
   assert.equal(matchesRecord(titled, { text: "synthetic study" }), true);
   assert.equal(matchesRecord(titled, { text: "  PATHOGENS   synthetic  " }), true);
   assert.equal(matchesRecord(titled, { text: "study of example" }), true);
   assert.equal(matchesRecord(titled, { text: "pathogens measles" }), false);
   assert.equal(matchesRecord(titled, { text: "TAG-ALPHA doe" }), true);
   assert.equal(matchesRecord(titled, { text: "tag-gamma" }), false);
+});
+
+test("text search ignores diacritics in the records and in the query", () => {
+  const accented = prepareRecord({ ...record, search: "García, M.; Müller, K.; Ångström talk in Montréal" });
+  assert.equal(matchesRecord(accented, { text: "garcia" }), true);
+  assert.equal(matchesRecord(accented, { text: "muller" }), true);
+  assert.equal(matchesRecord(accented, { text: "GARCIA muller" }), true);
+  // The same letter typed in decomposed form (i + combining acute accent).
+  assert.equal(matchesRecord(accented, { text: "Garci\u0301a" }), true);
+  assert.equal(matchesRecord(accented, { text: "angstrom montreal" }), true);
+  assert.equal(matchesRecord(accented, { text: "müller" }), true);
+  assert.equal(matchesRecord(accented, { text: "mueller" }), false);
+  // A query typed with accents finds unaccented text too.
+  const plain = prepareRecord({ ...record, search: "Garcia and Muller" });
+  assert.equal(matchesRecord(plain, { text: "García Müller" }), true);
+});
+
+test("prepareRecord folds the search text once and keeps the other fields", () => {
+  const raw = { key: "k", search: "  Ｆｕｌｌ\tWIDTH  García ", year: "2026", foundational: "N" };
+  const prepared = prepareRecord(raw);
+  assert.equal(prepared.search, "full width garcia");
+  assert.equal(prepared.key, "k");
+  assert.equal(prepared.year, "2026");
+  assert.equal(raw.search, "  Ｆｕｌｌ\tWIDTH  García ", "the input is not modified");
 });
 
 test("year matching compares strings and numbers alike", () => {
@@ -143,9 +170,20 @@ test("sanitizeFilterState maps option values case- and whitespace-insensitively 
   );
 });
 
-test("normalizeText lowercases, folds compatibility forms and collapses whitespace", () => {
+test("sanitizeFilterState prefers an exact option over one that differs only in accents", () => {
+  const options = { type: ["Resume", "Résumé"] };
+  assert.deepEqual(sanitizeFilterState({ type: "Résumé" }, options), { type: "Résumé" });
+  assert.deepEqual(sanitizeFilterState({ type: "Resume" }, options), { type: "Resume" });
+  // Otherwise the first option that folds to the same text wins.
+  assert.deepEqual(sanitizeFilterState({ type: "RESUMÉ" }, options), { type: "Resume" });
+});
+
+test("normalizeText lowercases, folds compatibility forms and accents, and collapses whitespace", () => {
   assert.equal(normalizeText("  Viral\t\nFITNESS  "), "viral fitness");
   assert.equal(normalizeText("ﬁtness"), "fitness");
+  assert.equal(normalizeText("García Müller"), "garcia muller");
+  assert.equal(normalizeText("İstanbul ÉCOLE"), "istanbul ecole");
+  assert.equal(normalizeText("a\u00A0\u00A8b"), "a b");
   assert.equal(normalizeText(undefined), "");
   assert.equal(normalizeText(2026), "2026");
 });

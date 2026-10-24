@@ -1,15 +1,20 @@
 <%
 // Publication archive: one card per record in data/generated/publications.yml,
 // plus the filter form that js/archive-filters.js reveals.
+
+// ==== Shared template helpers: begin ====
+// Copied byte-for-byte into every templates/*.ejs.md (Quarto listing
+// templates cannot import code); tests/js/template-helpers.test.mjs checks
+// that the copies are identical, so edit them together.
 //
 // Escaping: Quarto compiles listing templates with lodash _.template, where
 // the dash tag HTML-escapes and the equals tag inserts text unchanged (the
-// reverse of the ejs package). Every spreadsheet-derived value below goes
-// through esc() and is then inserted with the equals tag, so escaping never
-// depends on which tag is used. (No closing tag may appear inside this code
-// block, not even in a comment.) esc() also escapes the backtick: the output
-// sits in a raw-HTML fence so that pandoc does not read titles as Markdown,
-// and a value containing a line of backticks could otherwise close the fence.
+// reverse of the ejs package). Every spreadsheet-derived value goes through
+// esc() and is then inserted with the equals tag, so escaping never depends
+// on which tag is used. (No closing tag may appear inside a code block, not
+// even in a comment.) esc() also escapes the backtick: the output sits in a
+// raw-HTML fence so that pandoc does not read titles as Markdown, and a value
+// containing a line of backticks could otherwise close the fence.
 const esc = (value) => String(value ?? "").replace(/[&<>"'`]/g, (ch) => (
   { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "`": "&#96;" }[ch]
 ));
@@ -20,20 +25,22 @@ const jsonForScript = (value) => JSON.stringify(value).replace(/[<>&`\u2028\u202
   `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`
 ));
 
-// The four research pillars in canonical order (template-params in
-// publications/index.qmd, matching R/config.R). An unknown pillar stops the
-// render rather than showing a wrong number.
-const pillars = (templateParams && templateParams.pillars) || [];
-if (pillars.length !== 4) throw new Error("publication template: template-params.pillars must list the four research pillars");
-const pillarNumber = (name) => {
-  const index = pillars.indexOf(name);
-  if (index < 0) throw new Error(`publication template: unknown pillar '${name}'`);
-  return index + 1;
-};
-
 // Links are rendered only for https:// or mailto: values without whitespace
 // (the R validation already enforces this; this is defence in depth).
 const isSafeUrl = (value) => typeof value === "string" && /^(https:\/\/|mailto:)\S+$/.test(value);
+
+// The four research pillars in canonical order (template-params on the
+// listing page, matching R/config.R). An unknown pillar stops the render
+// rather than showing a wrong number.
+const pillars = (templateParams && templateParams.pillars) || [];
+if (pillars.length !== 4) throw new Error("listing template: template-params.pillars must list the four research pillars");
+const pillarNumber = (name) => {
+  const index = pillars.indexOf(name);
+  if (index < 0) throw new Error(`listing template: unknown pillar '${name}'`);
+  return index + 1;
+};
+// ==== Shared template helpers: end ====
+
 // preprint_doi is a bare DOI ("10.xxxx/...") or, occasionally, an https URL.
 const preprintUrl = (doi) => {
   if (typeof doi !== "string") return undefined;
@@ -107,7 +114,11 @@ const statuses = [...new Set(items.map((item) => item.status))].sort();
       </select>
     </div>
   </div>
-  <p class="archive-help" id="publication-filter-help">Search looks in titles, authors, journals and topic tags. The pillar filter matches a publication's primary or secondary pillar.</p>
+  <div class="archive-check">
+    <input type="checkbox" id="publication-filter-foundational" name="foundational" value="include">
+    <label for="publication-filter-foundational">Include foundational work</label>
+  </div>
+  <p class="archive-help" id="publication-filter-help">Search looks in titles, authors, journals and topic tags. The pillar filter matches a publication's primary or secondary pillar. Foundational work, earlier research that is not central to the current focus, is hidden unless you include it.</p>
   <div class="archive-actions">
     <p class="archive-count" role="status" aria-live="polite" aria-atomic="true" data-archive-count></p>
     <button class="archive-button" type="button" data-archive-reset>Reset filters</button>
