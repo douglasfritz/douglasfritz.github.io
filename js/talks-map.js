@@ -8,9 +8,12 @@
 //     data-talk-map-data="<url>"      talks.geojson, relative to the page
 //     data-talk-map-records="<id>"    the archive's records container
 //     data-map-state                  set here: loading | ready | unavailable
+//     data-map-reason                 set here when the message below shows,
+//                                     naming the failure (see REASONS)
 //     [data-talk-map-message]         role="status": the unavailable or
 //                                     tile-error note
-//     [data-talk-map-body]            everything else; hidden if the map fails.
+//     [data-talk-map-body]            everything else, the introduction
+//                                     included; hidden if the map fails.
 //                                     Its "Skip map and view talks" and "View
 //                                     talks as a list" links are plain links
 //                                     to the archive heading (tabindex="-1",
@@ -34,6 +37,13 @@
 // co-located talks spread out (spiderfy) instead of zooming in. Selecting a
 // marker opens its popup and moves focus to the talk's card; a card's
 // "Show on map" button reveals and highlights its marker and opens the popup.
+// Both move the page with an instant jump, never a smooth scroll, and so does
+// closing a popup (focus returns to its "Show on map" button): smooth
+// programmatic scrolls raced each other here. Chrome can cancel a smooth
+// scroll that starts soon after another one was interrupted (Leaflet itself
+// calls window.scrollTo on mousedown), and a smooth scroll still running
+// after a jump carries the page away again; either left focus on a card out
+// of view.
 // Libraries are self-hosted in assets/vendor/ and loaded here, so that a
 // missing library, a failed fetch or invalid data only replaces the map with a
 // short message. Errors never leave this module.
@@ -58,9 +68,40 @@ const MESSAGES = {
   unavailable: "The map could not be loaded. Every talk is still listed below.",
   tiles: "Some background map tiles could not be loaded. The markers and the list below still work."
 };
+// Why the message shows (section[data-map-reason]). The map is unavailable
+// for all but "tiles", where it still works without some background tiles.
+const REASONS = Object.freeze({
+  dataFetch: "data-fetch", // talks.geojson did not load (network or HTTP error)
+  dataInvalid: "data-invalid", // talks.geojson is not JSON or not a FeatureCollection
+  library: "library", // Leaflet or Leaflet.markercluster did not load
+  markup: "markup", // the page lacks the map's markup
+  script: "script", // an error in this module's own code
+  tiles: "tiles" // some background tiles failed
+});
+
+// A failure whose reason is known.
+class MapFailure extends Error {
+  constructor(reason, message) {
+    super(message);
+    this.reason = reason;
+  }
+}
 
 const prefersReducedMotion = () => Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
-const scrollBehavior = () => (prefersReducedMotion() ? "auto" : "smooth");
+
+// Scrolls `target` into view at once (to the top of the view, or only as far
+// as needed with block "nearest"), whatever the page's CSS scroll-behavior
+// (Quarto sets "smooth" on the root element).
+function jumpTo(target, block = "start") {
+  const root = document.documentElement;
+  const previous = root.style.scrollBehavior;
+  root.style.scrollBehavior = "auto";
+  try {
+    target.scrollIntoView({ block });
+  } finally {
+    root.style.scrollBehavior = previous;
+  }
+}
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -80,17 +121,30 @@ function loadScript(src) {
 }
 
 async function loadLeaflet() {
-  if (!window.L) await loadScript(LEAFLET_SRC);
-  if (typeof window.L?.map !== "function") throw new Error("Leaflet is unavailable");
-  if (!window.L.markerClusterGroup) await loadScript(CLUSTER_SRC);
-  if (typeof window.L.markerClusterGroup !== "function") throw new Error("Leaflet.markercluster is unavailable");
+  try {
+    if (!window.L) await loadScript(LEAFLET_SRC);
+    if (typeof window.L?.map !== "function") throw new Error("Leaflet is unavailable");
+    if (!window.L.markerClusterGroup) await loadScript(CLUSTER_SRC);
+    if (typeof window.L.markerClusterGroup !== "function") throw new Error("Leaflet.markercluster is unavailable");
+  } catch (error) {
+    throw new MapFailure(REASONS.library, error.message);
+  }
   return window.L;
 }
 
 async function loadFeatures(url) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`talks.geojson: HTTP ${response.status}`);
-  return readTalkFeatures(await response.json());
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (error) {
+    throw new MapFailure(REASONS.dataFetch, error.message);
+  }
+  if (!response.ok) throw new MapFailure(REASONS.dataFetch, `talks.geojson: HTTP ${response.status}`);
+  try {
+    return readTalkFeatures(await response.json());
+  } catch (error) {
+    throw new MapFailure(REASONS.dataInvalid, error.message);
+  }
 }
 
 function createTalkMap({ L, section, canvas, records, features }) {
@@ -109,10 +163,17 @@ function createTalkMap({ L, section, canvas, records, features }) {
       return L.Map.prototype.panBy.call(this, offset, reducedMotion ? { ...options, animate: false } : options);
     }
   });
+  // On a touch screen (a coarse primary pointer) one finger scrolls the page,
+  // as it does everywhere else, instead of panning the map: no one-finger
+  // dragging, so Leaflet leaves the browser's pan-x pan-y touch-action on
+  // the map. Two fingers move and zoom the map (Leaflet's touch zoom pans
+  // with the pinch); the zoom buttons, markers and keyboard work as before.
+  const touchFirst = Boolean(window.matchMedia?.("(pointer: coarse)").matches);
   const map = new TalkMap(canvas, {
     minZoom: 1,
     maxZoom: 18,
     scrollWheelZoom: false,
+    dragging: !touchFirst,
     zoomAnimation: !reducedMotion,
     fadeAnimation: !reducedMotion,
     markerZoomAnimation: !reducedMotion,
@@ -150,7 +211,9 @@ function createTalkMap({ L, section, canvas, records, features }) {
         const number = element("span", "talk-marker-number", model.text);
         number.setAttribute("aria-hidden", "true");
         if (!model.virtual) return [number];
-        const tag = element("span", "talk-marker-virtual-tag", "V");
+        // The "V" is drawn by the stylesheet (::after): a symbol, like the
+        // double outline; the accessible name says "Virtual".
+        const tag = element("span", "talk-marker-virtual-tag");
         tag.setAttribute("aria-hidden", "true");
         return [number, tag];
       }
@@ -226,7 +289,7 @@ function createTalkMap({ L, section, canvas, records, features }) {
     const heading = card?.querySelector(".record-title");
     if (card && heading && !card.hidden) {
       heading.focus({ preventScroll: true });
-      card.scrollIntoView({ block: "start", behavior: scrollBehavior() });
+      jumpTo(card);
     }
   };
 
@@ -292,7 +355,12 @@ function createTalkMap({ L, section, canvas, records, features }) {
     const focused = document.activeElement;
     const container = popup.getElement();
     const focusWasInPopup = !focused || focused === document.body || Boolean(container?.contains(focused));
-    if (opener?.isConnected && !opener.closest("[hidden]") && focusWasInPopup) opener.focus();
+    if (opener?.isConnected && !opener.closest("[hidden]") && focusWasInPopup) {
+      // (focus() alone would scroll smoothly, and a smooth scroll still
+      // running could carry the page away from a card the reader opens next.)
+      opener.focus({ preventScroll: true });
+      jumpTo(opener, "nearest");
+    }
   }));
   // A popup opened on a spread-out marker would float on its own once the
   // markers fold back into their cluster.
@@ -327,7 +395,7 @@ function createTalkMap({ L, section, canvas, records, features }) {
     if (!marker || !clusters.hasLayer(marker)) return;
     const request = ++revealRequest;
     select(key);
-    canvas.scrollIntoView({ block: "start", behavior: scrollBehavior() });
+    jumpTo(canvas);
     reveal(marker, guard(() => {
       if (request === revealRequest && clusters.hasLayer(marker)) openPopup(key, button).focus({ preventScroll: true });
     }));
@@ -371,12 +439,16 @@ function createTalkMap({ L, section, canvas, records, features }) {
     canvas.dataset.markerKeys = JSON.stringify(clusters.getLayers().map((marker) => markerKey.get(marker)).sort());
   };
 
-  // "Show on map" on every card with a marker (none without a map).
+  // "Show on map" on every card with a marker (none without a map). Every
+  // card has one, so its accessible name adds the talk's title and date
+  // after the visible text (WCAG 2.5.3).
   for (const [key, card] of cards) {
     if (!markers.has(key)) continue;
     const button = element("button", "talk-map-button", "Show on map");
     button.type = "button";
-    button.append(element("span", "visually-hidden", `: ${card.querySelector(".record-title")?.textContent ?? ""}`));
+    const title = card.querySelector(".record-title")?.textContent ?? "";
+    const date = card.querySelector("time")?.textContent;
+    button.setAttribute("aria-label", `Show on map: ${title}${date ? `, ${date}` : ""}`);
     button.addEventListener("click", guard(() => showOnMap(key, button)));
     const action = element("p", "talk-map-action");
     action.dataset.talkMapAction = "";
@@ -400,12 +472,13 @@ function setMessage(text) {
 }
 
 // Replaces the map with one short message; the archive is untouched.
-function fail() {
+function fail(reason) {
   if (failed) return;
   failed = true;
   controller = null;
   section.hidden = false;
   section.dataset.mapState = "unavailable";
+  section.dataset.mapReason = reason;
   const body = section.querySelector("[data-talk-map-body]");
   if (body) body.hidden = true;
   for (const action of document.querySelectorAll("[data-talk-map-action]")) action.remove();
@@ -413,7 +486,9 @@ function fail() {
 }
 
 function onTileError() {
-  if (!failed) setMessage(MESSAGES.tiles);
+  if (failed) return;
+  section.dataset.mapReason = REASONS.tiles;
+  setMessage(MESSAGES.tiles);
 }
 
 // Runs a handler; any error disables the map instead of reaching the page.
@@ -423,7 +498,7 @@ function guard(handler) {
     try {
       return handler(...args);
     } catch {
-      fail();
+      fail(REASONS.script);
       return undefined;
     }
   };
@@ -436,7 +511,7 @@ async function start() {
   section.dataset.mapState = "loading";
   const canvas = section.querySelector("[data-talk-map-canvas]");
   const records = document.getElementById(section.dataset.talkMapRecords ?? "");
-  if (!canvas || !records || !section.dataset.talkMapData) throw new Error("the map markup is incomplete");
+  if (!canvas || !records || !section.dataset.talkMapData) throw new MapFailure(REASONS.markup, "the map markup is incomplete");
 
   const dataUrl = new URL(section.dataset.talkMapData, document.baseURI);
   const [L, features] = await Promise.all([loadLeaflet(), loadFeatures(dataUrl)]);
@@ -456,5 +531,5 @@ if (section) {
     controller?.sync(listedKeys);
   }));
   document.dispatchEvent(new CustomEvent("archive:request"));
-  start().catch(() => fail());
+  start().catch((error) => fail(error instanceof MapFailure ? error.reason : REASONS.script));
 }

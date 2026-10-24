@@ -140,6 +140,9 @@ test_that("reach counts documented countries and hosts only, never an audience",
   expect_false(grepl('data-reach="countries"', no_country, fixed = TRUE))
   none <- as.character(reach_summary_html(list()))
   expect_identical(text_of(all_matches(none, '(?s)<p class="home-reach-line">.*?</p>')), "No public talks are listed yet.")
+  expect_false(grepl("all 0", text_of(none), fixed = TRUE))
+  expect_false(grepl('data-reach="presentations"', none, fixed = TRUE))
+  expect_match(text_of(none), "These are not audience figures.", fixed = TRUE)
 
   # The fixture talks, foundational work included: the Talks page's counts.
   records <- fixture_public_records()

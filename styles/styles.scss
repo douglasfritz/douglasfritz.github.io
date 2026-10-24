@@ -19,7 +19,70 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   box-shadow: none;
 }
 .page-columns { max-width: 1180px; margin-inline: auto; }
-// Quarto's smooth-scroll option sets scroll-behavior unconditionally.
+// Reduced motion (spec 13.5): no transitions or animations anywhere
+// (Bootstrap's, Quarto's, Leaflet's or the site's own) and no smooth
+// scrolling (Quarto's smooth-scroll option sets it unconditionally).
 @media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto !important; }
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+// Skip link (spec 14): the first focusable element on every page (moved
+// before the navbar by scripts/post-render.R). Bootstrap's
+// .visually-hidden-focusable hides it until it has focus; then it shows above
+// the fixed navbar, with the site's focus ring.
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 2000;
+  padding: 0.5rem 1rem;
+  color: $jet-black;
+  background: $surface;
+  border: 2px solid $jet-black;
+  border-radius: 0.375rem;
+  font-weight: 700;
+}
+.skip-link:hover { color: $jet-black; }
+// Its target, <main> (focusable through js/site.js): clear of the fixed
+// navbar when scrolled to, and no ring around the whole content (the next Tab
+// continues from there).
+#quarto-document-content { scroll-margin-top: 5rem; }
+#quarto-document-content:focus { outline: none; }
+
+// Without JavaScript the navbar cannot collapse or expand (Bootstrap's
+// toggler needs a script): on narrow screens, show its links and hide the
+// toggler.
+@media (scripting: none) {
+  .navbar-toggler { display: none; }
+  .navbar-collapse.collapse:not(.show) { display: block; }
+}
+
+// Quarto's search dialog (Algolia Autocomplete) takes the outline off its
+// input and buttons: the site's ring instead.
+.aa-DetachedOverlay .aa-DetachedFormContainer .aa-Form .aa-InputWrapper .aa-Input:focus,
+.aa-DetachedOverlay .aa-DetachedFormContainer .aa-Form .aa-ClearButton:focus-visible,
+.aa-DetachedOverlay .aa-DetachedCancelButton:focus-visible,
+#quarto-search .aa-DetachedSearchButton:focus-visible {
+  outline: $focus-ring;
+  outline-offset: $focus-ring-offset;
+  box-shadow: none;
+}
+// The highlighted (selected) result: Jet Black on Light Cyan, so that the
+// focus ring keeps its contrast on it, with the matched words on Cool Steel.
+.aa-DetachedOverlay li.aa-Item[aria-selected="true"] .search-item,
+.aa-DetachedOverlay li.aa-Item[aria-selected="true"] .search-item.search-result-more,
+.aa-DetachedOverlay li.aa-Item[aria-selected="true"] .search-item .search-result-section,
+.aa-DetachedOverlay li.aa-Item[aria-selected="true"] .search-item .search-result-text,
+.aa-DetachedOverlay li.aa-Item[aria-selected="true"] .search-item .search-result-title-container,
+.aa-DetachedOverlay li.aa-Item[aria-selected="true"] .search-item .search-result-text-container {
+  color: $jet-black;
+  background-color: $light-cyan;
+}
+.aa-DetachedOverlay li.aa-Item[aria-selected="true"] .search-item mark.search-match {
+  color: $jet-black;
+  background-color: $cool-steel;
 }

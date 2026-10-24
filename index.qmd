@@ -5,7 +5,10 @@
 pagetitle: "Translational physician-scientist for public health"
 description: "Douglas Fritz is an MD/PhD researcher working across climate change, infectious disease, medicine and health-professional education. Research pillars, selected publications and talks, and where the talks were hosted."
 # The research-pillar component (_pillars.qmd, rendered by R at build time);
-# js/pillars.js enhances it. Person structured data: Home and About only.
+# js/pillars.js enhances it. Person structured data: Home and About only
+# (includes/person-jsonld.html holds approved public identity fields only, no
+# email address or telephone; tests/testthat/test-site-content.R checks its
+# values against data/site.yml and _quarto.yml).
 include-in-header:
   - text: <script type="module" src="js/pillars.js"></script>
   - file: includes/person-jsonld.html

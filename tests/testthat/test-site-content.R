@@ -39,6 +39,9 @@ profile_urls <- c(
 
 person_jsonld <- function() {
   html <- read_text(repo_path("includes", "person-jsonld.html"))
+  # Only the structured data: no maintainer comment in the public <head>.
+  expect_match(html, "^<script type=\"application/ld\\+json\">")
+  expect_false(grepl("<!--", html, fixed = TRUE))
   scripts <- regmatches(html, gregexpr('(?s)<script type="application/ld\\+json">(.*?)</script>', html, perl = TRUE))[[1]]
   expect_length(scripts, 1)
   jsonlite::fromJSON(sub('(?s)^<script[^>]*>(.*)</script>$', "\\1", scripts[[1]], perl = TRUE), simplifyVector = FALSE)

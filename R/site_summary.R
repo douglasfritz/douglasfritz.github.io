@@ -214,8 +214,10 @@ selected_group <- function(kind, records) {
   item <- if (kind == "publications") selected_publication else selected_talk
   noun <- pillar_archives[[kind]]$nouns[[2]]
   id <- paste0("selected-", kind, "-heading")
+  # A section without an accessible name, so not a region landmark of its
+  # own inside the Selected work region (no nested landmarks).
   htmltools::tags$section(
-    class = "selected-group", `data-selected-kind` = kind, `aria-labelledby` = id,
+    class = "selected-group", `data-selected-kind` = kind,
     htmltools::tags$h3(class = "selected-heading no-anchor", id = id, heading),
     if (length(records) > 0) {
       htmltools::tags$ul(class = "selected-list", lapply(records, item))
@@ -269,12 +271,17 @@ reach_summary_html <- function(talks) {
     htmltools::tags$p(class = "home-reach-line", line),
     htmltools::tags$p(
       class = "section-note",
-      inline(
-        "Counted from the documented hosting locations of all ",
-        figure("presentations", reach$presentations),
-        noun_for(reach$presentations, " public talk", " public talks"),
-        ", foundational work included. A virtual talk counts where its host is. These are not audience figures."
-      )
+      # (No "all 0 public talks" when there are none.)
+      if (reach$presentations == 0) {
+        "Counted from the documented hosting locations of public talks, foundational work included. A virtual talk counts where its host is. These are not audience figures."
+      } else {
+        inline(
+          "Counted from the documented hosting locations of all ",
+          figure("presentations", reach$presentations),
+          noun_for(reach$presentations, " public talk", " public talks"),
+          ", foundational work included. A virtual talk counts where its host is. These are not audience figures."
+        )
+      }
     ),
     htmltools::tags$p(class = "selected-more", htmltools::tags$a(href = "/talks/", "All talks, with the map"))
   )

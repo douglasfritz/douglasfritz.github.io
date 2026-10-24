@@ -4,10 +4,11 @@
 // the site config ships them.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { VENDOR_FILES } from "../../scripts/vendor-map.mjs";
+import { VENDOR_FILES, vendor } from "../../scripts/vendor-map.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const read = (...parts) => readFileSync(path.join(root, ...parts));
@@ -65,4 +66,47 @@ test("the site config publishes the vendored files and the map data", () => {
   assert.match(config, /^\s*- "data\/generated\/talks\.geojson"\s*$/m);
   // Only the GeoJSON among the generated files is published.
   assert.equal(/data\/generated\/(?!talks\.geojson")/.test(config), false);
+});
+
+// Every file under `directory`, recursively.
+const filesUnder = (directory) => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => (
+  entry.isDirectory() ? filesUnder(path.join(directory, entry.name)) : [path.join(directory, entry.name)]
+));
+
+test("the vendored files are not executable (mode 644)", () => {
+  const files = filesUnder(path.join(root, "assets", "vendor"));
+  assert.equal(files.length, Object.values(VENDOR_FILES).reduce((sum, list) => sum + Object.keys(list).length, 0));
+  for (const file of files) assert.equal(statSync(file).mode & 0o777, 0o644, path.relative(root, file));
+});
+
+test("vendoring swaps in a complete copy with mode 644, or leaves the old copy untouched", () => {
+  const scratch = mkdtempSync(path.join(tmpdir(), "vendor-map-"));
+  try {
+    const from = path.join(scratch, "node_modules");
+    const to = path.join(scratch, "vendor");
+    mkdirSync(path.join(from, "lib", "dist", "images"), { recursive: true });
+    writeFileSync(path.join(from, "lib", "dist", "lib.js"), "new script");
+    writeFileSync(path.join(from, "lib", "dist", "images", "icon.png"), "new image", { mode: 0o755 });
+    mkdirSync(path.join(to, "lib"), { recursive: true });
+    writeFileSync(path.join(to, "lib", "lib.js"), "old script");
+    writeFileSync(path.join(to, "lib", "stale.txt"), "a file the new copy no longer has");
+    const quiet = { from, to, log: () => {} };
+
+    // A missing source file: the old copy stays as it was, and no temporary
+    // directory is left behind.
+    assert.throws(() => vendor({ ...quiet, files: { lib: { "dist/lib.js": "lib.js", "dist/missing.js": "missing.js" } } }), /ENOENT/);
+    assert.deepEqual(readdirSync(to), ["lib"]);
+    assert.deepEqual(readdirSync(path.join(to, "lib")).sort(), ["lib.js", "stale.txt"]);
+    assert.equal(readFileSync(path.join(to, "lib", "lib.js"), "utf8"), "old script");
+
+    // A complete copy replaces the old one (stale files go) with fixed modes.
+    vendor({ ...quiet, files: { lib: { "dist/lib.js": "lib.js", "dist/images/icon.png": "images/icon.png" } } });
+    assert.deepEqual(readdirSync(to), ["lib"]);
+    assert.deepEqual(filesUnder(path.join(to, "lib")).map((file) => path.relative(path.join(to, "lib"), file)).sort(), ["images/icon.png", "lib.js"]);
+    assert.equal(readFileSync(path.join(to, "lib", "lib.js"), "utf8"), "new script");
+    for (const file of filesUnder(path.join(to, "lib"))) assert.equal(statSync(file).mode & 0o777, 0o644, file);
+    assert.equal(statSync(path.join(to, "lib", "images")).mode & 0o777, 0o755);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 });

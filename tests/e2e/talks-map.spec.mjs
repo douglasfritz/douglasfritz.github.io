@@ -391,7 +391,10 @@ test("Show on map highlights the marker and opens its popup; Escape returns to t
   if (!liveData) expect(keys.length).toBeGreaterThan(1);
   for (const key of keys.slice(0, 4)) {
     const button = showButton(page, key);
-    await button.focus();
+    // Focus the button as Tab would: scrolled into view at once (a script's
+    // focus() would scroll smoothly under Quarto's smooth scrolling).
+    await button.scrollIntoViewIfNeeded();
+    await button.evaluate((node) => node.focus({ preventScroll: true }));
     await page.keyboard.press("Enter");
     await expect(popup(page)).toBeFocused();
     await expect(popup(page).locator(`li[data-key=${cssString(key)}]`)).toHaveCount(1);
@@ -409,6 +412,12 @@ test("Show on map highlights the marker and opens its popup; Escape returns to t
     await expect(link).toHaveCSS("outline-width", "3px");
     await expect(link).toHaveCSS("color", "rgb(92, 107, 115)");
     await page.keyboard.press("Escape");
+    // Focus is back on the button, which is in view at once (no smooth
+    // scroll that a next selection could race).
+    expect(await button.evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      return box.top >= -1 && box.bottom <= window.innerHeight + 1;
+    }), `${key}: the button is in view at once`).toBe(true);
     await expect(popup(page)).toHaveCount(0);
     await expect(button).toBeFocused();
   }
@@ -416,8 +425,18 @@ test("Show on map highlights the marker and opens its popup; Escape returns to t
 
 test("selecting a marker by mouse or keyboard moves focus to its card", { tag: "@js" }, async ({ page }) => {
   await openMap(page, `${PAGE}?foundational=include`);
+  // The page jumps to the card at once (never a smooth scroll, which Chrome
+  // can cancel after another scroll was interrupted), so the card is in view
+  // as soon as the click or key press has been handled: no waiting.
+  const inViewNow = (key) => heading(page, key).evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    return box.top >= -1 && box.bottom <= window.innerHeight + 1;
+  });
+  if (!liveData) expect(mapped.size).toBeGreaterThan(1);
   for (const key of [...mapped].slice(0, 4)) {
     // Reveal the marker (it may be in a cluster), then close the popup.
+    // Closing returns focus to the button, which Quarto's smooth scrolling
+    // may scroll to; let that finish before clicking the marker.
     await showButton(page, key).click();
     await expect(popup(page)).toBeVisible();
     await page.keyboard.press("Escape");
@@ -425,19 +444,24 @@ test("selecting a marker by mouse or keyboard moves focus to its card", { tag: "
     await settled(page);
 
     await markerIcon(page, key).click();
+    expect(await inViewNow(key), `${key}: the card is in view at once after a click`).toBe(true);
     await expect(heading(page, key)).toBeFocused();
     await expect(heading(page, key)).toBeInViewport();
     await expect(card(page, key)).toHaveClass(/\bis-map-selected\b/);
     await expect(popup(page).locator(`li[data-key=${cssString(key)}]`)).toHaveCount(1);
-    await settled(page);
 
     for (const press of ["Enter", " "]) {
+      // Back to the marker as a keyboard user's Tab gets there: the map
+      // scrolled into view at once, then focus. (A script's focus() would
+      // scroll smoothly, under Quarto's smooth scrolling, and that scroll
+      // could still be running when the key is pressed; Tab does not.)
       await canvas(page).scrollIntoViewIfNeeded();
-      await markerIcon(page, key).focus();
+      await markerIcon(page, key).evaluate((node) => node.focus({ preventScroll: true }));
+      await expect(markerIcon(page, key)).toBeInViewport();
       await page.keyboard.press(press);
+      expect(await inViewNow(key), `${key}: the card is in view at once after ${JSON.stringify(press)}`).toBe(true);
       await expect(heading(page, key)).toBeFocused();
       await expect(heading(page, key)).toBeInViewport();
-      await settled(page);
     }
   }
 });
@@ -458,11 +482,16 @@ test("a popup's talk title moves focus to that talk's card", { tag: "@js" }, asy
 });
 
 test("talks at one location cluster, then spread out in place from the keyboard", { tag: "@js" }, async ({ page }) => {
-  test.skip(liveData, "needs the fixture's single shared location");
   await openMap(page);
+  // A location shared by talks that are all shown by default, drawn as the
+  // map's only cluster. The fixtures are built so (asserted here); live data
+  // may have no shared location, or other talks near enough to join its
+  // cluster, and then this check cannot tell the group's cluster apart.
   const group = sharedPlaces.find((g) => g.every((f) => !isFoundational(f.properties.key)));
-  expect(group).toBeTruthy();
   const cluster = page.locator("#talk-map-canvas .talk-cluster");
+  const isolated = Boolean(group) && (await cluster.count()) === 1 && (await cluster.textContent()) === String(group.length);
+  if (!liveData) expect(isolated, "the fixtures' shared location is the map's only cluster").toBe(true);
+  test.skip(!isolated, "the live data has no location shared by default-shown talks that forms the map's only cluster");
   await expect(cluster).toHaveCount(1);
   await expect(cluster).toHaveText(String(group.length));
   await expect(cluster).toHaveAttribute("role", "button");
@@ -507,7 +536,9 @@ test("virtual markers differ in shape and carry a V; numbers and fills follow th
       virtualSeen += 1;
       await expect(icon).toHaveCSS("border-top-style", "double");
       await expect(icon).toHaveCSS("border-top-left-radius", "0px");
-      await expect(icon.locator(".talk-marker-virtual-tag")).toHaveText("V");
+      // The "V" is drawn by the stylesheet (::after), not text in the
+      // marker, whose accessible name says "Virtual".
+      expect(await icon.locator(".talk-marker-virtual-tag").evaluate((node) => getComputedStyle(node, "::after").content)).toBe('"V"');
       await expect(icon.locator(".talk-marker-virtual-tag")).toBeVisible();
     } else {
       await expect(icon).toHaveCSS("border-top-style", "solid");
@@ -604,18 +635,21 @@ test("Tab moves into the map, through its controls and out again, with a visible
 
 test("map controls, markers and buttons are at least 24 by 24 pixels", { tag: "@js" }, async ({ page }) => {
   await openMap(page, `${PAGE}?foundational=include`);
-  const key = [...mapped][0];
-  test.skip(!key, "no mapped talks");
-  await showButton(page, key).click();
-  await expect(popup(page)).toBeVisible();
   const targets = [
     page.locator(".leaflet-control-zoom-in"),
     page.locator(".leaflet-control-zoom-out"),
-    page.locator(".leaflet-popup-close-button"),
-    markerIcon(page, key),
-    showButton(page, key),
-    page.getByRole("link", { name: "Skip map and view talks" })
+    page.getByRole("link", { name: "Skip map and view talks" }),
+    page.getByRole("link", { name: "View talks as a list" })
   ];
+  // A marker, its card's button and the open popup's close button, when a
+  // talk has a map location (always in the fixtures).
+  const key = [...mapped][0];
+  if (!liveData) expect(key, "a talk with a map location").toBeTruthy();
+  if (key) {
+    await showButton(page, key).click();
+    await expect(popup(page)).toBeVisible();
+    targets.push(page.locator(".leaflet-popup-close-button"), markerIcon(page, key), showButton(page, key));
+  }
   const clusters = page.locator("#talk-map-canvas .talk-cluster");
   if (await clusters.count()) targets.push(clusters.first());
   for (const target of targets) {
@@ -623,6 +657,62 @@ test("map controls, markers and buttons are at least 24 by 24 pixels", { tag: "@
     expect(box.width).toBeGreaterThanOrEqual(24);
     expect(box.height).toBeGreaterThanOrEqual(24);
   }
+});
+
+// Touch screens (WCAG 2.5.1, and no scroll trap): one finger scrolls the page
+// over the map, as everywhere else; two fingers move the map.
+test.describe("on a touch screen", { tag: "@js" }, () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 375, height: 812 } });
+
+  // Where the map's first tile is (it moves when the map does) and how far
+  // the page is scrolled.
+  const positions = (page) => page.evaluate(() => {
+    const tile = document.querySelector("#talk-map-canvas img.leaflet-tile").getBoundingClientRect();
+    return { scrollY: Math.round(window.scrollY), tile: [Math.round(tile.x), Math.round(tile.y + window.scrollY)] };
+  });
+
+  // A drag of `fingers` touch points from the map's centre, `distance` px up.
+  async function drag(page, fingers, distance) {
+    const box = await canvas(page).boundingBox();
+    const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+    const points = (dy) => Array.from({ length: fingers }, (_, i) => ({ x: x + (i - (fingers - 1) / 2) * 80, y: y - dy, id: i + 1 }));
+    const client = await page.context().newCDPSession(page);
+    await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: points(0) });
+    for (let step = 1; step <= 10; step += 1) await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: points((distance * step) / 10) });
+    await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await client.detach();
+  }
+
+  test("one finger scrolls the page over the map; two fingers move the map", async ({ page }) => {
+    await openMap(page);
+    expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches), "touch is the primary pointer").toBe(true);
+    await expect(page.locator(".talk-map-touch-hint")).toBeVisible();
+    await expect(canvas(page)).not.toHaveClass(/\bleaflet-touch-drag\b/);
+    await expect(canvas(page)).toHaveCSS("touch-action", "pan-x pan-y");
+    await expect(page.locator("#talk-map-canvas img.leaflet-tile").first()).toBeAttached();
+    await canvas(page).scrollIntoViewIfNeeded();
+    await settled(page);
+
+    const start = await positions(page);
+    await drag(page, 1, 150);
+    await expect.poll(async () => (await positions(page)).scrollY, { message: "one finger scrolls the page" }).toBeGreaterThan(start.scrollY + 50);
+    await settled(page);
+    expect((await positions(page)).tile, "one finger leaves the map where it was").toEqual(start.tile);
+
+    await canvas(page).scrollIntoViewIfNeeded();
+    await settled(page);
+    const before = await positions(page);
+    await drag(page, 2, 100);
+    await expect.poll(async () => (await positions(page)).tile[1], { message: "two fingers move the map" }).toBeLessThan(before.tile[1] - 50);
+    expect((await positions(page)).scrollY, "two fingers do not scroll the page").toBe(before.scrollY);
+  });
+});
+
+test("with a mouse the map drags as usual and shows no touch hint (control)", { tag: "@js" }, async ({ page }) => {
+  await openMap(page);
+  expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(false);
+  await expect(canvas(page)).toHaveClass(/\bleaflet-grab\b/);
+  await expect(page.locator(".talk-map-touch-hint")).toBeHidden();
 });
 
 for (const viewport of [{ width: 375, height: 812 }, { width: 1280, height: 900 }]) {

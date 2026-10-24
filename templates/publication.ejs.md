@@ -53,6 +53,11 @@ const publisherLinkText = (url) => {
   if (doiPrefix.test(url)) return `DOI ${url.replace(doiPrefix, "")}`;
   return url.startsWith("mailto:") ? `Email ${url.slice("mailto:".length)}` : "Publisher page";
 };
+const preprintLinkText = (item) => `Preprint${item.preprint_journal ? ` (${item.preprint_journal})` : ""}`;
+// Each card repeats these links, so a link's accessible name (aria-label)
+// adds the publication it belongs to: its visible text first (WCAG 2.5.3),
+// then the title.
+const linkName = (text, item) => `${text}: ${item.title}`;
 
 // Schema.org metadata only for published work (never for "In Review"), and
 // only with fields the data supports. The free-text author list is not a
@@ -86,7 +91,7 @@ const statuses = [...new Set(items.map((item) => item.status))].sort();
       <label for="publication-filter-text">Search publications</label>
       <input class="form-control" type="search" id="publication-filter-text" name="text" aria-describedby="publication-filter-help">
     </div>
-    <div class="archive-field">
+    <div class="archive-field archive-field-wide">
       <label for="publication-filter-pillar">Research pillar</label>
       <select class="form-select" id="publication-filter-pillar" name="pillar">
         <option value="">All pillars</option>
@@ -170,10 +175,10 @@ const statuses = [...new Set(items.map((item) => item.status))].sort();
 <% if (doiLink || preprintLink) { %>
   <ul class="record-links">
 <% if (doiLink) { %>
-    <li><a href="<%= esc(doiLink) %>"><%= esc(publisherLinkText(doiLink)) %></a></li>
+    <li><a href="<%= esc(doiLink) %>" aria-label="<%= esc(linkName(publisherLinkText(doiLink), item)) %>"><%= esc(publisherLinkText(doiLink)) %></a></li>
 <% } %>
 <% if (preprintLink) { %>
-    <li><a href="<%= esc(preprintLink) %>">Preprint<% if (item.preprint_journal) { %> (<%= esc(item.preprint_journal) %>)<% } %></a></li>
+    <li><a href="<%= esc(preprintLink) %>" aria-label="<%= esc(linkName(preprintLinkText(item), item)) %>"><%= esc(preprintLinkText(item)) %></a></li>
 <% } %>
   </ul>
 <% } %>

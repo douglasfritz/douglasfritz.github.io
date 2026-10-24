@@ -5,6 +5,9 @@ project:
   # Quarto would otherwise render as pages of their own.
   render:
     - "*.qmd"
+  # Moves the skip link (includes/skip-link.html) to the start of <body> on
+  # every rendered page: Quarto places included markup inside <main>.
+  post-render: scripts/post-render.R
   # Browser modules, loaded by the archive pages; the talk map's self-hosted
   # libraries (npm run vendor:map) and its data. Of the generated data files
   # only the GeoJSON is published; the pages render from the others. The
@@ -73,6 +76,12 @@ format:
     # a polyfill from third-party CDNs.
     html-math-method: plain
     lang: en
+    # No "#" links beside headings: Quarto names every one "Anchor", so a
+    # page would have several links with one name and different targets.
+    anchor-sections: false
+    # The skip link (moved before the navbar by scripts/post-render.R) and
+    # the site-wide script (js/site.js) that makes its target focusable.
+    include-before-body: includes/skip-link.html
 
 execute:
   freeze: false

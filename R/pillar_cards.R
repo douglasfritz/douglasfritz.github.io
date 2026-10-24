@@ -225,6 +225,12 @@ pillar_card <- function(pillar, number, entry, copy, records) {
         class = "pillar-note",
         "The archive links list every public record with this as its primary or secondary pillar, foundational work included."
       ),
+      # The archives filter with JavaScript; without it, these links open the
+      # whole archive. Shown only when scripting is unavailable (.nojs-note).
+      htmltools::tags$p(
+        class = "pillar-note nojs-note",
+        "Without JavaScript, these links open the whole archive, unfiltered."
+      ),
       pillar_outputs("publications", entry$publications, records$publications, number),
       pillar_outputs("talks", entry$talks, records$talks, number)
     )

@@ -159,12 +159,15 @@ extra view of the list, never the only way to reach a talk:
   talk's card heading. A card's "Show on map" button highlights its marker, opens the popup and
   moves focus into it; Escape closes it and returns focus to the button. Popups list every listed
   talk at that location, with links to the cards. "Skip map and view talks" and "View talks as a
-  list" move focus to the archive heading. With `prefers-reduced-motion`, nothing on the map
-  animates.
+  list" move focus to the archive heading. The page jumps to the card or the map at once, never
+  with a smooth scroll. With `prefers-reduced-motion`, nothing on the map animates. On a touch
+  screen one finger scrolls the page over the map and two fingers move it.
 - **Failures.** If Leaflet, the GeoJSON (an HTTP error or invalid data) or the map markup is
   unavailable, the map region shows one short message and the archive works as before. Failed
   tiles keep the map and add a short note. Without JavaScript the map region stays hidden.
-- **Test hook.** `#talk-map[data-map-state]` is `loading`, `ready` or `unavailable`, and
+- **Test hook.** `#talk-map[data-map-state]` is `loading`, `ready` or `unavailable`;
+  `#talk-map[data-map-reason]` names why the message shows (`data-fetch`, `data-invalid`,
+  `library`, `markup`, `script` or `tiles`); and
   `#talk-map-canvas[data-marker-keys]` holds the keys of the markers in the cluster group as a
   sorted JSON array, updated on every sync. The browser tests compare it with the visible cards.
 
@@ -304,14 +307,14 @@ The copy on these pages is a draft. Before launch, approve or edit:
 The tests need [Node.js](https://nodejs.org/) 22 or later. Install the pinned tools once:
 
 ```bash
-npm ci                                  # Playwright, http-server, js-yaml, Leaflet (exact versions)
+npm ci                                  # Playwright, axe-core, http-server, js-yaml, Leaflet (exact versions)
 npx playwright install chromium         # the browser Playwright drives
 ```
 
 Then:
 
 ```bash
-npm run test:unit                       # pure filter, map and pillar-link logic, vendored files (node --test)
+npm run test:unit                       # filter, map and pillar-link logic, vendored files, no innerHTML (node --test)
 npm run data:fixture                    # build data/generated/ from the synthetic fixtures
 quarto render                           # build _site/ from that data
 npm run test:e2e                        # browser tests against _site/, with and without JavaScript
@@ -325,4 +328,15 @@ coordinates, two talks at one location, and so on); when testing live data that 
 records, so `quarto` must be on `PATH` (or set `QUARTO` to its path); the pillar component's
 scratch site also runs its R chunk with this repository's renv library. Every browser test serves a
 blank image for each OpenStreetMap tile, so the tests never contact the tile servers, and fails on
-any script error, console error or failed request it did not cause on purpose.
+any script error, console error or failed request it did not cause on purpose. Failing tests are
+never retried.
+
+Site-wide checks: `accessibility.spec.mjs` (axe-core on every page and in interactive states, the
+skip link, landmarks, the keyboard order and focus ring of every focusable element, link names,
+link and request targets, forced colours, reduced motion and the pages without JavaScript),
+`responsive.spec.mjs` (320 to 1280 px: no sideways scrolling, nothing cut off, 24 px targets) and
+`failure-states.spec.mjs` (empty results and every map, data and script failure).
+
+The skip link (`includes/skip-link.html`) is the first element on every page. Quarto places
+included markup inside `<main>`, so the project's post-render step, `scripts/post-render.R`, moves
+it to the start of `<body>` after every render.

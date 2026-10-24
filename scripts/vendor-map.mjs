@@ -6,8 +6,8 @@
 //
 // Run it after changing either version in package.json, then commit
 // assets/vendor/. tests/js/vendor-map.test.mjs checks that the committed copies
-// match the installed, pinned packages.
-import { copyFileSync, mkdirSync, rmSync } from "node:fs";
+// match the installed, pinned packages and are not executable.
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,16 +36,46 @@ export const VENDOR_FILES = {
   }
 };
 
-function vendor() {
-  for (const [name, files] of Object.entries(VENDOR_FILES)) {
-    const target = path.join(root, "assets", "vendor", name);
-    rmSync(target, { recursive: true, force: true });
-    for (const [from, to] of Object.entries(files)) {
-      const destination = path.join(target, to);
-      mkdirSync(path.dirname(destination), { recursive: true });
-      copyFileSync(path.join(root, "node_modules", name, from), destination);
+// Files 0644 and directories 0755, whatever the package or umask had: the
+// committed copies are data, never executables.
+function normalizeModes(directory) {
+  chmodSync(directory, 0o755);
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) normalizeModes(entryPath);
+    else chmodSync(entryPath, 0o644);
+  }
+}
+
+// Copies each package's files into assets/vendor/<package>/. Each package is
+// copied into a new temporary directory beside its target first and then
+// swapped in, so that a failed copy (a missing file, say) leaves the
+// committed copy as it was, never half deleted. `from` is the directory that
+// holds node_modules/, `to` the vendor directory.
+export function vendor({ files = VENDOR_FILES, from = path.join(root, "node_modules"), to = path.join(root, "assets", "vendor"), log = (line) => process.stdout.write(line) } = {}) {
+  mkdirSync(to, { recursive: true });
+  for (const [name, list] of Object.entries(files)) {
+    const target = path.join(to, name);
+    const staging = mkdtempSync(path.join(to, `.${name}-new-`));
+    try {
+      for (const [source, destination] of Object.entries(list)) {
+        mkdirSync(path.dirname(path.join(staging, destination)), { recursive: true });
+        copyFileSync(path.join(from, name, source), path.join(staging, destination));
+      }
+      normalizeModes(staging);
+      const previous = existsSync(target) ? `${staging}-previous` : null;
+      if (previous) renameSync(target, previous);
+      try {
+        renameSync(staging, target);
+      } catch (error) {
+        if (previous) renameSync(previous, target);
+        throw error;
+      }
+      if (previous) rmSync(previous, { recursive: true, force: true });
+    } finally {
+      rmSync(staging, { recursive: true, force: true });
     }
-    process.stdout.write(`Copied ${Object.keys(files).length} files to assets/vendor/${name}/\n`);
+    log(`Copied ${Object.keys(list).length} files to ${path.relative(root, target)}/\n`);
   }
 }
 

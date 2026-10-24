@@ -68,8 +68,11 @@ const scopeLabel = (scope) => {
 const formatLabel = (virtual) => (virtual === "Y" ? "Virtual" : "In person");
 
 // Public links come from this allowlist of fields, in this order. A missing
-// or unsafe value renders no anchor.
+// or unsafe value renders no anchor. Each card repeats these words, so a
+// link's accessible name (aria-label) adds the talk it belongs to: its
+// visible text first (WCAG 2.5.3), then the title and date.
 const linkFields = [["event_url", "Event page"], ["slides_url", "Slides"], ["poster_url", "Poster"], ["recording_url", "Recording"]];
+const linkName = (link, item, date) => `${link.text}: ${item.title}, ${date.text}`;
 const talkLinks = (item) => linkFields
   .filter(([field]) => isSafeUrl(item[field]))
   .map(([field, label]) => ({ href: item[field], text: item[field].startsWith("mailto:") ? `${label} (email)` : label }));
@@ -108,7 +111,7 @@ const formats = ["N", "Y"].filter((value) => items.some((item) => item.virtual_s
       <label for="talk-filter-text">Search talks</label>
       <input class="form-control" type="search" id="talk-filter-text" name="text" aria-describedby="talk-filter-help">
     </div>
-    <div class="archive-field">
+    <div class="archive-field archive-field-wide">
       <label for="talk-filter-pillar">Research pillar</label>
       <select class="form-select" id="talk-filter-pillar" name="pillar">
         <option value="">All pillars</option>
@@ -181,9 +184,10 @@ const formats = ["N", "Y"].filter((value) => items.some((item) => item.virtual_s
 <section class="talk-map" id="talk-map" aria-labelledby="talk-map-heading"
   data-talk-map data-talk-map-data="../data/generated/talks.geojson" data-talk-map-records="talk-records" hidden>
   <h2 id="talk-map-heading">Talk locations</h2>
-  <p class="talk-map-intro">Each marker is the documented location of an in-person event, or the host's location for a virtual talk. Only talks with a verified location have a marker; every talk is in the list below.</p>
   <p class="talk-map-message" role="status" data-talk-map-message></p>
   <div class="talk-map-body" data-talk-map-body>
+    <p class="talk-map-intro">Each marker is the documented location of an in-person event, or the host's location for a virtual talk. Only talks with a verified location have a marker; every talk is in the list below.</p>
+    <p class="talk-map-touch-hint">On a touch screen, move the map with two fingers; one finger scrolls the page.</p>
     <p class="talk-map-skip"><a href="#talk-archive-heading">Skip map and view talks</a></p>
     <div class="talk-map-canvas" id="talk-map-canvas" role="region" aria-label="Interactive map of talk locations" data-talk-map-canvas data-marker-keys="[]"></div>
     <p class="talk-map-coverage" id="talk-map-coverage" data-talk-map-coverage></p>
@@ -195,7 +199,7 @@ const formats = ["N", "Y"].filter((value) => items.some((item) => item.virtual_s
         <li data-pillar="<%= esc(pillar) %>" data-pillar-number="<%= index + 1 %>"><span class="talk-marker talk-marker-p<%= index + 1 %> talk-marker-in-person" aria-hidden="true"><span class="talk-marker-number"><%= index + 1 %></span></span> Pillar <%= index + 1 %>: <%= esc(pillar) %></li>
 <% }); %>
         <li><span class="talk-marker talk-marker-p0 talk-marker-in-person" aria-hidden="true"></span> Circle: an in-person talk, at the event location</li>
-        <li><span class="talk-marker talk-marker-p0 talk-marker-virtual" aria-hidden="true"><span class="talk-marker-virtual-tag">V</span></span> Square with a double outline and a “V”: a virtual talk, shown at its host's location</li>
+        <li><span class="talk-marker talk-marker-p0 talk-marker-virtual" aria-hidden="true"><span class="talk-marker-virtual-tag"></span></span> Square with a double outline and a “V”: a virtual talk, shown at its host's location</li>
         <li><span class="talk-cluster" aria-hidden="true"><span class="talk-cluster-count">2</span></span> Circle with a count: talks at the same or nearby locations; select it to zoom in or spread them out</li>
       </ul>
     </div>
@@ -267,7 +271,7 @@ const formats = ["N", "Y"].filter((value) => items.some((item) => item.virtual_s
 <% if (links.length > 0) { %>
   <ul class="record-links">
 <% for (const link of links) { %>
-    <li><a href="<%= esc(link.href) %>"><%= esc(link.text) %></a></li>
+    <li><a href="<%= esc(link.href) %>" aria-label="<%= esc(linkName(link, item, date)) %>"><%= esc(link.text) %></a></li>
 <% } %>
   </ul>
 <% } %>

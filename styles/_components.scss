@@ -26,7 +26,10 @@
 }
 .archive-field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
 .archive-field label { font-weight: 600; }
-.archive-field-search { grid-column: 1 / -1; }
+// Full rows: the search box, and the pillar select, whose options are long
+// ("Pillar 1: Infectious-disease biology, evolution and environment"), so
+// that the chosen one shows in full from 48rem.
+.archive-field-search, .archive-field-wide { grid-column: 1 / -1; }
 .archive-check { display: flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; }
 // A 24px native checkbox (WCAG 2.5.8), Jet Black when checked; its label is
 // part of the target.
@@ -203,6 +206,12 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
 }
 .talk-map h2 { margin: 0 0 0.25rem; padding: 0; border: 0; font-size: 1.35rem; }
 .talk-map-intro { margin: 0 0 0.75rem; font-size: 0.9rem; }
+// Only where touch is the primary pointer (js/talks-map.js then lets one
+// finger scroll the page and two fingers move the map).
+.talk-map-touch-hint { display: none; margin: 0 0 0.75rem; font-size: 0.9rem; font-weight: 600; }
+@media (pointer: coarse) {
+  .talk-map-touch-hint { display: block; }
+}
 // The status line is empty (and takes no room) until the map fails or its
 // tiles do.
 .talk-map-message { margin: 0; font-weight: 600; }
@@ -309,6 +318,9 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
   border-radius: 0.2rem;
   font-size: 0.7rem;
 }
+// The "V" is a symbol drawn here, not text in the marker (whose accessible
+// name says "Virtual"); the map key's swatch uses the same tag.
+.talk-marker-virtual-tag::after { content: "V"; }
 .talk-marker-p0 { color: $jet-black; background: $surface; }
 .talk-marker-p1 { color: $surface; background: $jet-black; }
 .talk-marker-p2 { color: $surface; background: $blue-slate; }
@@ -333,14 +345,9 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
 .talk-map-button:hover { background: $light-cyan; }
 .talk-card.is-map-selected { background: $light-cyan; box-shadow: inset 0.375rem 0 0 $jet-black; }
 
-// No moving map (spec 13.5): the script turns Leaflet's animations off; this
-// covers any transition left in Leaflet's or markercluster's CSS.
-@media (prefers-reduced-motion: reduce) {
-  .talk-map *, .talk-map *::before, .talk-map *::after {
-    transition: none !important;
-    animation: none !important;
-  }
-}
+// No moving map (spec 13.5): the script turns Leaflet's animations off, and
+// the site-wide reduced-motion rule (styles.scss) covers any transition left
+// in Leaflet's or markercluster's CSS.
 
 // Research pillars (spec 7, 13.2, 13.5, 14; markup from R/pillar_cards.R).
 // The umbrella identity, then four pillar cards in DOM order 1-4.
@@ -473,13 +480,8 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
   .pillar-component.js-enhanced .pillar-card-4 { grid-area: p4; }
 }
 
-// Reduced motion: no transitions, even if the motion class were present.
-@media (prefers-reduced-motion: reduce) {
-  .pillar-component *, .pillar-component *::before, .pillar-component *::after {
-    transition: none !important;
-    animation: none !important;
-  }
-}
+// Reduced motion: no transitions, even if the motion class were present
+// (the site-wide reduced-motion rule in styles.scss).
 
 // Home, About and CV (spec 6.1, 6.5, 6.6; markup from R/site_summary.R).
 // Jet Black text on white or Light Cyan, Blue Slate links on white or Light
@@ -571,6 +573,23 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
 .cv-download > :last-child { margin-bottom: 0; }
 .cv-download-link a { display: inline-block; padding-block: 0.25rem; font-size: 1.15rem; font-weight: 700; }
 .cv-file-hint { font-weight: 400; }
+
+// A note for readers without JavaScript, where a feature degrades (the
+// pillar archive links open the whole archive): shown only when scripting is
+// unavailable.
+.nojs-note { display: none; }
+@media (scripting: none) {
+  .nojs-note { display: block; }
+}
+
+// Forced colours (Windows High Contrast and similar): the system replaces
+// backgrounds and removes box shadows, so a state shown only by a fill or a
+// shadow also gets an outline in the system's text colour.
+@media (forced-colors: active) {
+  .talk-map .talk-marker.is-selected { outline: 3px solid CanvasText; outline-offset: 3px; }
+  .talk-card.is-map-selected,
+  .pillar-component.js-enhanced .pillar-card.is-selected { outline: 3px solid CanvasText; outline-offset: 2px; }
+}
 
 // Profile links in the navbar (icons with accessible names) and the footer:
 // targets of at least 24px.
