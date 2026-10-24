@@ -1,5 +1,30 @@
 ---
+# DRAFT copy for Douglas's approval before launch (README, "Launch checklist").
 title: "CV"
+description: "Douglas Fritz's curriculum vitae, and how it is kept from the same data as this site."
 ---
 
-This page will offer Douglas Fritz's approved CV as a PDF download.
+```{r}
+#| label: site-setup
+#| include: false
+#| message: false
+#| warning: false
+# The download (link, size and last-updated date) is rendered only when the
+# approved PDF named in data/site.yml exists at build time
+# (R/site_summary.R); the chunk returns its block (knitr::asis_output).
+root <- Sys.getenv("QUARTO_PROJECT_DIR")
+if (!nzchar(root)) stop("Render this page with Quarto from the project (QUARTO_PROJECT_DIR is not set).")
+site_code <- new.env()
+for (file in c("config.R", "pillar_cards.R", "site_summary.R")) sys.source(file.path(root, "R", file), envir = site_code)
+```
+
+My CV and this website draw on one spreadsheet of publications, presentations and other entries. The CV is typeset from it with R and the vitae package, which keeps maintaining the record separate from formatting it. This site is built from the same spreadsheet with R and Quarto: only the entries marked for the website are published, and each rebuild updates the publication and talk archives.
+
+```{r}
+#| label: cv-download
+#| echo: false
+#| results: asis
+#| message: false
+#| warning: false
+knitr::asis_output(site_code$cv_download_block(root))
+```

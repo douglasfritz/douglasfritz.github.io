@@ -7,16 +7,27 @@ project:
     - "*.qmd"
   # Browser modules, loaded by the archive pages; the talk map's self-hosted
   # libraries (npm run vendor:map) and its data. Of the generated data files
-  # only the GeoJSON is published; the pages render from the others.
+  # only the GeoJSON is published; the pages render from the others. The
+  # headshot and favicon, and the approved CV PDF once it is added
+  # (data/site.yml; the CV page links it only when it exists).
   resources:
     - "js/*.js"
     - "assets/vendor/**"
     - "data/generated/talks.geojson"
+    - "assets/images/*"
+    - "assets/documents/*.pdf"
 
 website:
   title: "Douglas Fritz"
   site-url: "https://douglasfritz.github.io/"
+  favicon: assets/images/favicon.svg
   search: true
+  # Social metadata from each page's title and description. Quarto uses a
+  # page's first image as its preview (the headshot, on Home only); a
+  # site-wide social-preview image is deferred.
+  open-graph: true
+  twitter-card:
+    card-style: summary
   navbar:
     left:
       - href: index.qmd
@@ -31,8 +42,23 @@ website:
         text: About
       - href: cv/index.qmd
         text: CV
+    # Profile links (the same URLs as data/site.yml). Bootstrap Icons ships
+    # with Quarto; it has no ORCID icon, so ORCID is in the footer only.
+    right:
+      - icon: github
+        href: https://github.com/douglasfritz
+        aria-label: "Douglas Fritz on GitHub"
+      - icon: linkedin
+        href: https://www.linkedin.com/in/douglas-fritz
+        aria-label: "Douglas Fritz on LinkedIn"
   page-footer:
     left: "© Douglas Fritz"
+    # Markdown links, so that each keeps its accessible name (Quarto drops
+    # aria-label from footer items).
+    center: >-
+      [GitHub](https://github.com/douglasfritz){.footer-profile aria-label="Douglas Fritz on GitHub"}
+      [ORCID](https://orcid.org/0000-0001-8822-4639){.footer-profile aria-label="Douglas Fritz on ORCID"}
+      [LinkedIn](https://www.linkedin.com/in/douglas-fritz){.footer-profile aria-label="Douglas Fritz on LinkedIn"}
     right: "Built with Quarto, R, and GitHub Pages"
 
 format:
@@ -41,6 +67,8 @@ format:
     toc: false
     smooth-scroll: true
     link-external-newwindow: false
+    # A canonical link on every page, from site-url.
+    canonical-url: true
     # The site has no mathematics. Without this, listing pages load MathJax and
     # a polyfill from third-party CDNs.
     html-math-method: plain

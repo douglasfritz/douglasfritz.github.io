@@ -8,9 +8,9 @@ infectious-disease biology, quantitative discovery, clinical translation, and pl
 
 - [Quarto](https://quarto.org/docs/get-started/) on your `PATH`. RStudio and Positron each bundle a copy of Quarto; if
   `quarto` is not found in your shell, add the bundled `bin` directory to `PATH`.
-- R (4.4 or later), to run the tests and the data script, and for `quarto render` itself: the Home
-  and Research pages run a small R chunk at build time (see "Research pillars" below), so Quarto
-  must find `Rscript` (on `PATH`, or set `QUARTO_R`). R packages are pinned with
+- R (4.4 or later), to run the tests and the data script, and for `quarto render` itself: the Home,
+  Research, About and CV pages run small R chunks at build time (see "Research pillars" and "Home,
+  About and CV pages" below), so Quarto must find `Rscript` (on `PATH`, or set `QUARTO_R`). R packages are pinned with
   [renv](https://rstudio.github.io/renv/) in `renv.lock`; R activates the project library
   automatically when started from the repository root. On a new machine, install the pinned
   packages once with `Rscript -e 'renv::restore()'`. To add a package, list it in `DESCRIPTION`,
@@ -186,6 +186,85 @@ selected outputs and links to the archives filtered to that pillar.
   keys are the secondary-pillar records.
 - `topic_tags`: up to eight tags of the pillar's publications and talks (primary or secondary),
   the tags on the most records first, ties in alphabetical order ignoring case; `[]` when none.
+
+## Home, About and CV pages
+
+The Home page has a hero (name, headshot, training context and umbrella identity), a positioning
+paragraph, two calls to action ("Explore the research", "Browse talks and reach"), the pillar
+component, Selected work, a reach summary, and current affiliations with links to the CV and the
+profiles. About is a short first-person narrative (current work, direction, affiliations, methods);
+CV explains how the CV is kept and offers the approved PDF once there is one. The parts that come
+from data are rendered by R at build time (`R/site_summary.R`, called from small chunks in each
+page), escaped like the pillar component, and complete without JavaScript.
+
+### `data/site.yml`
+
+One file holds the site's public identity; `read_site_config()` checks it, and the render stops if
+it has any other key. **It never holds a phone number or an email address.**
+
+| Key | Contents |
+|---|---|
+| `name` | "Douglas Fritz" (the Home h1) |
+| `umbrella` | the umbrella identity (the same text as the pillar component) |
+| `position` | the CV's documented position line (the `Person` `jobTitle`) |
+| `training_context` | the current training line in the Home hero |
+| `affiliations` | current, documented roles: each a `title` and an optional `organization` |
+| `headshot` | `src` (project-relative), `alt` text, and the image's pixel `width` and `height` |
+| `profiles` | exactly `github`, `orcid`, `linkedin`, in that order, as `https://` URLs |
+| `cv_pdf` | the approved CV's path, `assets/documents/Douglas_Fritz_CV.pdf` |
+| `cv_updated` | the PDF's date (`YYYY-MM-DD`), or `~` while there is no PDF |
+
+The positioning paragraph and the About and CV text live in `index.qmd`, `about/index.qmd` and
+`cv/index.qmd`. The same profile URLs appear in `_quarto.yml` (navbar icons for GitHub and LinkedIn;
+footer links for all three) and in `includes/person-jsonld.html`; `tests/testthat/test-site-content.R`
+checks that they all agree.
+
+### Selected work and reach
+
+- **Selected work** shows up to three publications and up to three talks, chosen separately from
+  the public generated data (never typed by hand): records with `featured` exactly `Y` first, then
+  the rest, each group in archive order (newest first). Foundational work (`foundational_work ==
+  "Y"`) is never selected; fewer than three are shown instead. Publications keep their exact status
+  and badge (In Review is a dashed outline, never the filled Published badge); a virtual talk reads
+  `Virtual — hosted by <host>, <place>`. Each title links to its archive card
+  (`/publications/#publication-<slug>`, `/talks/#talk-<slug>`).
+- **Reach** reads "Across N countries and M hosting institutions": the distinct, documented
+  `location_country` and `organization` values of all public talks, foundational work included (a
+  virtual talk counts at its host; missing or blank values are not counted). These are the figures
+  the Talks & Reach page shows without JavaScript. It never states an audience size.
+
+### Metadata
+
+Every page has a unique title and description, a canonical link (from `site-url`), Open Graph and
+Twitter (summary) metadata, and the favicon `assets/images/favicon.svg`. The Home page's preview
+image is the hero headshot (Quarto picks the page's first image); a site-wide social-preview image
+is deferred. `includes/person-jsonld.html` adds `Person` structured data (name, URL, headshot,
+position line and the three profile URLs; no email or telephone) to the Home and About pages only.
+Publications add `ScholarlyArticle` data for published articles only, never for In Review ones.
+
+### The CV PDF
+
+The CV page links the PDF, with its size and "Last updated" date, **only if**
+`assets/documents/Douglas_Fritz_CV.pdf` exists when the site is rendered. Otherwise it says that
+the CV is generated from the same spreadsheet as this site and shows no link and no date. To publish
+the approved PDF:
+
+1. Use a copy without the phone number or an email address (never a PDF straight from `R_CV`).
+2. Save it as `assets/documents/Douglas_Fritz_CV.pdf`.
+3. Set `cv_updated` in `data/site.yml` to its date, for example `cv_updated: "2026-10-24"`. The
+   render stops if the PDF is present without a valid date.
+4. Run `quarto render` and the tests, then commit the PDF and `data/site.yml`.
+
+### Launch checklist (Douglas's approval)
+
+The copy on these pages is a draft. Before launch, approve or edit:
+
+- [ ] the hero and positioning copy on Home, and the About and CV text;
+- [ ] the headshot (`assets/images/headshot.jpg`, a metadata-free web copy) and its alt text;
+- [ ] the CV PDF, once a phone-free, email-free copy is ready (see above);
+- [ ] the public contact routes: the site currently lists no email address, only GitHub, ORCID and
+  LinkedIn. Adding a public email would be a deliberate change to `data/site.yml`'s schema and its
+  privacy tests.
 
 ## Browser tests
 

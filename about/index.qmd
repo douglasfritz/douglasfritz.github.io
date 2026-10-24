@@ -1,5 +1,67 @@
 ---
+# DRAFT copy for Douglas's approval before launch (README, "Launch checklist").
 title: "About"
+description: "About Douglas Fritz: current training and work, research direction, affiliations and methods."
+# Person structured data: Home and About only.
+include-in-header:
+  - file: ../includes/person-jsonld.html
 ---
 
-This page will give a professional narrative of Douglas Fritz's work.
+```{r}
+#| label: site-setup
+#| include: false
+#| message: false
+#| warning: false
+# The affiliations and profile links come from data/site.yml
+# (R/site_summary.R); each chunk returns its block (knitr::asis_output).
+root <- Sys.getenv("QUARTO_PROJECT_DIR")
+if (!nzchar(root)) stop("Render this page with Quarto from the project (QUARTO_PROJECT_DIR is not set).")
+site_code <- new.env()
+for (file in c("config.R", "pillar_cards.R", "site_summary.R")) sys.source(file.path(root, "R", file), envir = site_code)
+```
+
+I am training as a physician-scientist on a combined MD/PhD path. My current work is my doctoral research, as an NIH Oxford–Cambridge Scholar based in Cambridge, UK, alongside national climate-health leadership.
+
+## Current work
+
+**Research.** My doctoral project combines experimental virology, epidemiology and evolutionary modelling, in two strands. In one, I develop phylodynamic methods to estimate differences in fitness among co-circulating dengue lineages. In the other, I test how temperature may affect viral stability and fitness.
+
+**Climate and health.** As National Chair of Medical Students for a Sustainable Future, I help translate climate-health evidence into education, communication and action across health-professional networks.
+
+## Direction
+
+The thread through this work is translation across scales: from a virus and a model to patients, institutions, communities and public-health action. My medical and research training are preparing me to work as a physician-scientist for public health; that is where my training is heading, not a role I already hold.
+
+## Current training and affiliations
+
+```{r}
+#| label: about-affiliations
+#| echo: false
+#| results: asis
+#| message: false
+#| warning: false
+knitr::asis_output(site_code$about_affiliations_block(root))
+```
+
+## Selected methods
+
+- Experimental virology and assay optimisation
+- Epidemiology
+- Evolutionary modelling, including phylodynamic and phylogenetic methods
+- Model validation and sensitivity analysis
+- Research communication and climate-health education
+
+The [publications](/publications/) and [talks](/talks/) archives list the public evidence for this work, and the [CV](/cv/) page explains how the full record is kept.
+
+## Contact
+
+You can reach me through LinkedIn, ORCID or GitHub.
+
+```{r}
+#| label: about-profiles
+#| echo: false
+#| results: asis
+#| message: false
+#| warning: false
+knitr::asis_output(site_code$profile_links_block(root))
+```

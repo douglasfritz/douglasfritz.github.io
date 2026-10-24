@@ -345,7 +345,7 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
 // Research pillars (spec 7, 13.2, 13.5, 14; markup from R/pillar_cards.R).
 // The umbrella identity, then four pillar cards in DOM order 1-4.
 // Without JavaScript: stacked cards, every panel shown. With js/pillars.js
-// (.js-enhanced): one panel open at a time and, from 62rem, the four cards
+// (.pillar-component.js-enhanced): one panel open at a time and, from 62rem, the four cards
 // surround the umbrella (CSS grid only; the DOM order never changes).
 // Panels are white with Jet Black text and Blue Slate links (5.5:1); the
 // pillar fills are supplementary to the number and name, with white text on
@@ -371,7 +371,7 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
 .pillar-hub-text { margin: 0; }
 // The selection hint only applies once the script has made the buttons work.
 .pillar-hint { display: none; margin: 0.5rem 0 0; font-weight: 600; }
-.js-enhanced .pillar-hint { display: block; }
+.pillar-component.js-enhanced .pillar-hint { display: block; }
 
 .pillar-card {
   min-width: 0;
@@ -404,9 +404,9 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
 .pillar-toggle-name { min-width: 0; }
 // Open/closed sign (+ or minus): only once the buttons work.
 .pillar-toggle-state { display: none; }
-.js-enhanced .pillar-toggle { cursor: pointer; }
-.js-enhanced .pillar-toggle[aria-expanded="false"] { border-radius: 0.375rem; }
-.js-enhanced .pillar-toggle-state {
+.pillar-component.js-enhanced .pillar-toggle { cursor: pointer; }
+.pillar-component.js-enhanced .pillar-toggle[aria-expanded="false"] { border-radius: 0.375rem; }
+.pillar-component.js-enhanced .pillar-toggle-state {
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -420,17 +420,17 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
   border-radius: 50%;
   line-height: 1;
 }
-.js-enhanced .pillar-toggle[aria-expanded="false"] .pillar-toggle-state::before { content: "+"; }
-.js-enhanced .pillar-toggle[aria-expanded="true"] .pillar-toggle-state::before { content: "\2212"; }
+.pillar-component.js-enhanced .pillar-toggle[aria-expanded="false"] .pillar-toggle-state::before { content: "+"; }
+.pillar-component.js-enhanced .pillar-toggle[aria-expanded="true"] .pillar-toggle-state::before { content: "\2212"; }
 // Hover and keyboard focus only emphasise a pillar (WCAG 1.4.13): nothing
 // is revealed until it is selected. The focus ring is the site's own, set
 // outside the card's border so that a gap separates it from the dark fills.
 .pillar-toggle:focus-visible { outline-offset: 6px; }
-.js-enhanced .pillar-toggle:hover .pillar-toggle-name { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.2em; }
-.js-enhanced .pillar-toggle:hover .pillar-toggle-state { background: $light-cyan; }
-.js-enhanced .pillar-card:has(.pillar-toggle:hover),
-.js-enhanced .pillar-card:has(.pillar-toggle:focus-visible),
-.js-enhanced .pillar-card.is-selected {
+.pillar-component.js-enhanced .pillar-toggle:hover .pillar-toggle-name { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.2em; }
+.pillar-component.js-enhanced .pillar-toggle:hover .pillar-toggle-state { background: $light-cyan; }
+.pillar-component.js-enhanced .pillar-card:has(.pillar-toggle:hover),
+.pillar-component.js-enhanced .pillar-card:has(.pillar-toggle:focus-visible),
+.pillar-component.js-enhanced .pillar-card.is-selected {
   border-color: $jet-black;
   box-shadow: 0 0.25rem 0 $jet-black;
 }
@@ -466,11 +466,11 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
     align-items: start;
     gap: 1.25rem 1.5rem;
   }
-  .js-enhanced .pillar-hub { grid-area: hub; justify-self: center; width: min(100%, 36rem); }
-  .js-enhanced .pillar-card-1 { grid-area: p1; }
-  .js-enhanced .pillar-card-2 { grid-area: p2; }
-  .js-enhanced .pillar-card-3 { grid-area: p3; }
-  .js-enhanced .pillar-card-4 { grid-area: p4; }
+  .pillar-component.js-enhanced .pillar-hub { grid-area: hub; justify-self: center; width: min(100%, 36rem); }
+  .pillar-component.js-enhanced .pillar-card-1 { grid-area: p1; }
+  .pillar-component.js-enhanced .pillar-card-2 { grid-area: p2; }
+  .pillar-component.js-enhanced .pillar-card-3 { grid-area: p3; }
+  .pillar-component.js-enhanced .pillar-card-4 { grid-area: p4; }
 }
 
 // Reduced motion: no transitions, even if the motion class were present.
@@ -480,3 +480,99 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
     animation: none !important;
   }
 }
+
+// Home, About and CV (spec 6.1, 6.5, 6.6; markup from R/site_summary.R).
+// Jet Black text on white or Light Cyan, Blue Slate links on white or Light
+// Cyan (5.5:1 and 5.2:1); no Blue Slate on Light Blue. No motion.
+//
+// Hero: the title block (name as the page's h1, umbrella identity, training
+// context, headshot), then the positioning paragraph and the two calls to
+// action. The headshot keeps its own aspect ratio (width and height
+// attributes), so its space is reserved before it loads.
+.home-hero { margin-block: 0.5rem 2rem; }
+.home-hero-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(5.5rem, 24vw, 12rem);
+  align-items: start;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+@media (min-width: 48rem) {
+  .home-hero-header { align-items: center; gap: 1.5rem; }
+}
+.home-identity { min-width: 0; overflow-wrap: anywhere; }
+.home-name { margin: 0 0 0.5rem; padding: 0; border: 0; font-size: clamp(2rem, 1.4rem + 2.5vw, 3rem); line-height: 1.1; }
+.home-umbrella { margin: 0 0 0.5rem; font-family: $headings-font-family; font-size: clamp(1.2rem, 1rem + 0.9vw, 1.5rem); line-height: 1.3; }
+.home-training { margin: 0; font-size: 1.05rem; }
+.home-headshot {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 2px solid $jet-black;
+  border-radius: 0.75rem;
+  background: $light-blue;
+}
+.home-lead p { max-width: 46rem; font-size: 1.15rem; line-height: 1.55; }
+.home-actions p { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; margin: 0; }
+.home-cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.1rem;
+  color: $jet-black;
+  background: $surface;
+  border: 2px solid $jet-black;
+  border-radius: 0.375rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.home-cta:hover { color: $jet-black; background: $light-cyan; text-decoration: underline; }
+.home-cta-primary, .home-cta-primary:hover { color: $surface; background: $jet-black; }
+.home-cta:focus-visible { outline-offset: 3px; }
+
+// Shared panels: Selected work, reach, affiliations and links, CV download.
+.selected-work, .home-reach, .home-connect { margin-block: 2rem; }
+.selected-work > h2, .home-reach > h2, .home-connect > h2 { margin: 0 0 0.25rem; padding: 0; border: 0; font-size: 1.5rem; }
+.section-note { margin: 0 0 0.75rem; font-size: 0.9rem; }
+.selected-groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+@media (min-width: 48rem) {
+  .selected-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.selected-group, .home-reach, .home-connect, .cv-download {
+  min-width: 0;
+  padding: 1rem 1.25rem;
+  color: $jet-black;
+  background: $surface;
+  border: 1px solid $cool-steel;
+  border-radius: 0.5rem;
+  overflow-wrap: anywhere;
+}
+.selected-heading { margin: 0 0 0.5rem; padding: 0; border: 0; font-size: 1.2rem; }
+.selected-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.selected-item { padding-block: 0.75rem; border-top: 1px solid $cool-steel; }
+.selected-item:first-child { padding-top: 0.25rem; border-top: 0; }
+.selected-item .record-kicker { margin-bottom: 0.25rem; }
+.selected-type { font-size: 0.9rem; }
+.selected-title { display: inline-block; padding-block: 0.15rem; font-weight: 600; line-height: 1.35; }
+.selected-meta { margin: 0.25rem 0 0; font-size: 0.95rem; }
+.selected-none { margin: 0; font-style: italic; }
+.selected-more { margin: 0.75rem 0 0; }
+.selected-more a { display: inline-block; padding-block: 0.25rem; font-weight: 600; }
+.home-reach-line { margin: 0 0 0.5rem; font-family: $headings-font-family; font-size: 1.35rem; line-height: 1.35; }
+
+// Affiliations and profile links (Home and About).
+.affiliation-list { margin: 0 0 0.75rem; }
+.affiliation-list li + li { margin-top: 0.25rem; }
+.profile-links { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin: 0.5rem 0 0; padding: 0; list-style: none; }
+.profile-links a { display: inline-block; padding-block: 0.25rem; font-weight: 600; }
+
+// CV download: shown only when the approved PDF is published.
+.cv-download { margin-block: 1.5rem; }
+.cv-download > :last-child { margin-bottom: 0; }
+.cv-download-link a { display: inline-block; padding-block: 0.25rem; font-size: 1.15rem; font-weight: 700; }
+.cv-file-hint { font-weight: 400; }
+
+// Profile links in the navbar (icons with accessible names) and the footer:
+// targets of at least 24px.
+.navbar .nav-link .bi { font-size: 1.15rem; }
+.nav-footer .footer-profile { display: inline-block; min-height: 1.5rem; padding: 0.25rem 0.5rem; color: $jet-black; }

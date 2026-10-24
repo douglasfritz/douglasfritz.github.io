@@ -1,0 +1,48 @@
+# Site identity and contact routes for the Home, About and CV pages (read by
+# R/site_summary.R at build time; tests/testthat/test-site-content.R checks
+# it). Every value is public. DRAFT: the wording, the headshot and the CV PDF
+# need Douglas's approval before launch (README, "Launch checklist").
+#
+# Sources: the position line, training context and affiliations come from
+# the YAML and opening narrative of the R_CV COP31 CV (GoogleSheetCV_COP31.Rmd,
+# September 2026). No phone number and no email address belong in this file:
+# visitors reach Douglas through the profile links.
+
+name: "Douglas Fritz"
+
+# The umbrella identity (spec section 1): text, never a fifth pillar.
+umbrella: "Translational physician-scientist for public health"
+
+# The CV's position line, as documented (used as the Person jobTitle).
+position: "MD/PhD Researcher | Climate, Health & Infectious Disease"
+
+# Current training, shown in the Home hero.
+training_context: "MD/PhD researcher and NIH Oxford–Cambridge Scholar, based in Cambridge, UK"
+
+# Current, documented roles only: `title`, and `organization` when there is one.
+affiliations:
+  - title: "NIH Oxford–Cambridge Scholar"
+  - title: "National Chair"
+    organization: "Medical Students for a Sustainable Future"
+
+# The portrait in the Home hero (a metadata-free web copy; width and height
+# are the file's own pixel size, so the page reserves its space).
+headshot:
+  src: "assets/images/headshot.jpg"
+  alt: "Portrait of Douglas Fritz, smiling, standing at a balcony railing with a city and hills behind him"
+  width: 800
+  height: 1066
+
+# Profile links, in display order. includes/person-jsonld.html and the
+# navbar and footer in _quarto.yml use the same URLs (a test checks this).
+profiles:
+  github: "https://github.com/douglasfritz"
+  orcid: "https://orcid.org/0000-0001-8822-4639"
+  linkedin: "https://www.linkedin.com/in/douglas-fritz"
+
+# The approved CV PDF. The CV page links it, with its size and this date,
+# only when the file exists at build time. Set cv_updated (YYYY-MM-DD, the
+# date of the approved PDF) when you add the file; the build stops if the
+# PDF is present without a valid date.
+cv_pdf: "assets/documents/Douglas_Fritz_CV.pdf"
+cv_updated: ~

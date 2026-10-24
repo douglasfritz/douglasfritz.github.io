@@ -7,12 +7,14 @@
 # The research-pillar component (R/pillar_cards.R), rendered to static HTML at
 # build time from data/generated/ and data/pillar-copy.yml, so that it is
 # complete without JavaScript. Included by research/index.qmd and index.qmd;
-# each of them also loads js/pillars.js, which enhances the markup.
+# each of them also loads js/pillars.js, which enhances the markup. The block
+# is the chunk's value (knitr::asis_output), so non-ASCII text stays UTF-8 in
+# any locale.
 local({
   root <- Sys.getenv("QUARTO_PROJECT_DIR")
   if (!nzchar(root)) stop("Render this page with Quarto from the project (QUARTO_PROJECT_DIR is not set).")
   source(file.path(root, "R", "config.R"), local = TRUE)
   source(file.path(root, "R", "pillar_cards.R"), local = TRUE)
-  cat(pillar_component_block(root))
+  knitr::asis_output(pillar_component_block(root))
 })
 ```

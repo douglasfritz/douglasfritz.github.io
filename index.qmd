@@ -1,11 +1,68 @@
 ---
-title: "Home"
+# DRAFT copy for Douglas's approval before launch (README, "Launch checklist").
+# No `title`: the hero (R/site_summary.R) is the page's title block, with
+# the name as its h1; pagetitle gives the <title>.
+pagetitle: "Translational physician-scientist for public health"
+description: "Douglas Fritz is an MD/PhD researcher working across climate change, infectious disease, medicine and health-professional education. Research pillars, selected publications and talks, and where the talks were hosted."
 # The research-pillar component (_pillars.qmd, rendered by R at build time);
-# js/pillars.js enhances it.
+# js/pillars.js enhances it. Person structured data: Home and About only.
 include-in-header:
-  text: <script type="module" src="js/pillars.js"></script>
+  - text: <script type="module" src="js/pillars.js"></script>
+  - file: includes/person-jsonld.html
 ---
 
-This site introduces Douglas Fritz, a translational physician-scientist for public health whose work connects infectious-disease biology, quantitative discovery, clinical translation, and planetary health.
+```{r}
+#| label: site-setup
+#| include: false
+#| message: false
+#| warning: false
+# The hero, Selected work, the reach summary and the closing links are built
+# at build time by R/site_summary.R from data/site.yml and the public
+# generated data. Each chunk returns its block (knitr::asis_output), which
+# keeps non-ASCII text UTF-8 in any locale.
+root <- Sys.getenv("QUARTO_PROJECT_DIR")
+if (!nzchar(root)) stop("Render this page with Quarto from the project (QUARTO_PROJECT_DIR is not set).")
+site_code <- new.env()
+for (file in c("config.R", "pillar_cards.R", "site_summary.R")) sys.source(file.path(root, "R", file), envir = site_code)
+```
+
+::: {.home-hero}
+
+```{r}
+#| label: home-hero
+#| echo: false
+#| results: asis
+#| message: false
+#| warning: false
+knitr::asis_output(site_code$home_hero_block(root))
+```
+
+::: {.home-lead}
+I work at the intersection of climate change, infectious disease, medicine and health-professional education. My doctoral research combines experimental virology, epidemiology and evolutionary modelling, and I help translate climate-health evidence into education, communication and action across health-professional networks.
+:::
+
+::: {.home-actions}
+[Explore the research](/research/){.home-cta .home-cta-primary} [Browse talks and reach](/talks/){.home-cta}
+:::
+
+:::
 
 {{< include _pillars.qmd >}}
+
+```{r}
+#| label: home-evidence
+#| echo: false
+#| results: asis
+#| message: false
+#| warning: false
+knitr::asis_output(site_code$home_evidence_block(root))
+```
+
+```{r}
+#| label: home-connect
+#| echo: false
+#| results: asis
+#| message: false
+#| warning: false
+knitr::asis_output(site_code$home_connect_block(root))
+```

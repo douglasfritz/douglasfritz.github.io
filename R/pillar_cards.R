@@ -77,10 +77,17 @@ stop_pillars <- function(...) stop(paste0("pillar component: ", ...), call. = FA
 
 is_copy_text <- function(x) is.character(x) && length(x) == 1 && !is.na(x) && nzchar(trimws(x))
 
+# Reads a YAML file as UTF-8 whatever the session's locale. (yaml::read_yaml
+# re-encodes the file to the native encoding, which fails on non-ASCII text in
+# a C locale; readLines(encoding = "UTF-8") only marks the strings.)
+read_yaml_utf8 <- function(path) {
+  yaml::yaml.load(paste(readLines(path, encoding = "UTF-8", warn = FALSE), collapse = "\n"))
+}
+
 # data/pillar-copy.yml: exactly the configured pillars, in order, each with a
 # nonempty `role` and `includes`.
 read_pillar_copy <- function(path, pillars = site_config$pillars) {
-  copy <- yaml::read_yaml(path)
+  copy <- read_yaml_utf8(path)
   if (!identical(names(copy), pillars)) {
     stop_pillars(path, " must have exactly the four configured pillars as keys, in canonical order")
   }
@@ -106,8 +113,8 @@ read_pillar_inputs <- function(root) {
   }
   list(
     summary = jsonlite::read_json(file.path(generated, files[["summary"]])),
-    publications = yaml::read_yaml(file.path(generated, files[["publications"]])),
-    talks = yaml::read_yaml(file.path(generated, files[["talks"]])),
+    publications = read_yaml_utf8(file.path(generated, files[["publications"]])),
+    talks = read_yaml_utf8(file.path(generated, files[["talks"]])),
     copy = read_pillar_copy(file.path(root, "data", "pillar-copy.yml"))
   )
 }
@@ -263,9 +270,14 @@ pillar_component_html <- function(summary, publications, talks, copy, pillars = 
   protect_raw_html(as.character(component))
 }
 
+# A raw-HTML block of Quarto markdown, UTF-8 encoded. A chunk returns it as
+# knitr::asis_output(): cat() or writeLines() output is captured through the
+# session's native encoding and loses non-ASCII text in a C locale.
+raw_html_block <- function(html) enc2utf8(paste0("```{=html}\n", html, "\n```\n"))
+
 # The component as a raw-HTML block of Quarto markdown (for a chunk with
 # results: asis), from the data under the project root `root`.
 pillar_component_block <- function(root) {
   inputs <- read_pillar_inputs(root)
-  paste0("```{=html}\n", do.call(pillar_component_html, inputs), "\n```\n")
+  raw_html_block(do.call(pillar_component_html, inputs))
 }
