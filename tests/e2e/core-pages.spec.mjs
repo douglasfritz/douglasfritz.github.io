@@ -5,10 +5,10 @@
 // conditional CV download. Data-driven: every expectation comes from
 // data/generated/ and data/site.yml at test time, so the suite runs on the
 // synthetic fixtures (locally) and on the live sheet (CI, E2E_DATA=live).
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 import { load as loadYaml } from "js-yaml";
-import { cssString, expect, liveData, readGenerated, root as repoRoot, test } from "./support.mjs";
+import { cssString, expect, liveData, readGenerated, renderScratchSite, root as repoRoot, routeScratchSite, test } from "./support.mjs";
 
 const publications = loadYaml(readGenerated("publications.yml"));
 const talks = loadYaml(readGenerated("talks.yml"));
@@ -68,6 +68,46 @@ const phoneLike = (text) => {
   });
 };
 const emailLike = (text) => String(text).match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g) ?? [];
+
+// The contact-leak scan covers site-authored content only: the navbar, the
+// footer, page titles and metadata, and the pages' own prose. These regions
+// hold spreadsheet text instead and are left out: a DOI label, title, author
+// or journal can look like a phone number, and a record's link may be a
+// mailto: address (spec 16). The R pipeline checks those fields (https:// or
+// mailto: only).
+const DATA_DERIVED = [
+  ".quarto-listing", // the archive listings: cards, filters, reach, map (templates/*.ejs.md)
+  "#selected-work", // Home: Selected work (R/site_summary.R)
+  "[data-pillar-outputs]", // pillar component: selected outputs (R/pillar_cards.R)
+  ".pillar-topics" // pillar component: topic tags
+].join(", ");
+
+// The current page's site-authored text, link targets and metadata, read
+// with the data-derived regions hidden; and what in them looks like contact
+// details: phone- or email-like text, mailto:/tel: links, a link to the
+// private sheet.
+async function contactLeaks(page) {
+  const seen = await page.evaluate((selectors) => {
+    const hide = document.createElement("style");
+    hide.textContent = `${selectors} { display: none !important; }`;
+    document.head.append(hide);
+    const metadata = [...document.querySelectorAll('meta[name="description"], meta[property^="og:"], meta[name^="twitter:"]')].map((node) => node.getAttribute("content"));
+    const text = [document.title, ...metadata, document.body.innerText].join("\n");
+    hide.remove();
+    const values = [...document.querySelectorAll("[href], [src], meta[content]")]
+      .filter((node) => node.closest(selectors) === null)
+      .map((node) => node.getAttribute("href") ?? node.getAttribute("src") ?? node.getAttribute("content"));
+    return { text, values };
+  }, DATA_DERIVED);
+  const findings = [
+    ...phoneLike(seen.text).map((match) => `phone-like text: ${match}`),
+    ...emailLike(seen.text).map((match) => `email-like text: ${match}`),
+    ...seen.values.flatMap(emailLike).map((match) => `email-like link or metadata: ${match}`),
+    ...seen.values.filter((value) => /^(mailto|tel):/i.test(value)).map((value) => `contact link: ${value}`),
+    ...seen.values.filter((value) => /docs\.google\.com\/spreadsheets/.test(value)).map((value) => `private sheet: ${value}`)
+  ];
+  return { findings, text: seen.text };
+}
 
 const squash = (text) => String(text ?? "").replace(/\s+/g, " ").trim();
 const textOf = (locator) => locator.evaluate((node) => node.textContent);
@@ -221,16 +261,17 @@ test("icon links show the site's focus ring when reached by keyboard", { tag: "@
   }
 });
 
-test("no page links or shows an email address or a phone number", async ({ page }) => {
+test("no site-authored content shows or links an email address or a phone number", async ({ page }) => {
   for (const route of ROUTES) {
     await page.goto(route);
-    await expect(page.locator('[href^="mailto:" i], [href^="tel:" i]'), route).toHaveCount(0);
-    const text = await page.evaluate(() => document.body.innerText);
-    const values = await page.locator("[href], [src], meta[content]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href") ?? node.getAttribute("src") ?? node.getAttribute("content")));
-    expect(phoneLike(text), route).toEqual([]);
-    expect(emailLike(text), route).toEqual([]);
-    expect(values.flatMap(emailLike), route).toEqual([]);
-    expect(values.filter((value) => /docs\.google\.com\/spreadsheets/.test(value)), route).toEqual([]);
+    const { findings, text } = await contactLeaks(page);
+    expect(findings, route).toEqual([]);
+    // The scan reads the authored regions: navbar, footer and the page itself.
+    for (const authored of [...NAV, "Built with Quarto, R, and GitHub Pages", "GitHub", "ORCID", "LinkedIn"]) {
+      expect(text, `${route}: ${authored}`).toContain(authored);
+    }
+    const heading = route === "/" ? site.training_context : squash(await textOf(page.locator("h1")));
+    expect(text, route).toContain(heading);
   }
   // The detectors work: synthetic shapes only.
   expect(phoneLike(`call +99 ${"0".repeat(4)} ${"1".repeat(6)}`)).toHaveLength(1);
@@ -455,4 +496,148 @@ test("a js-enhanced class outside the pillar component does not switch on pillar
   // The component's own class still does.
   await page.evaluate(() => document.querySelector("[data-pillar-component]").classList.add("js-enhanced"));
   await expect(component.locator(".pillar-hint")).toBeVisible();
+});
+
+// ---- Contact-leak scan scope (scratch renders, never the real pages) ---------
+
+// Obviously fake values, built here so that no email-like string is written in
+// the repository.
+const at = "@";
+const FAKE = {
+  prosePhone: "+00 11111 111111",
+  navbarPhone: "+00 22222 222222",
+  proseEmail: `prose${at}example.org`,
+  footerEmail: `footer${at}example.org`,
+  linkEmail: `someone${at}example.org`
+};
+// Realistic DOI shapes and titles with digits, as spreadsheet data.
+const DOIS = ["10.1016/j.cell.2020.04.015", "10.1073/pnas.1912345116", "10.1038/s41586-020-2012-7"];
+const DIGIT_TITLE = "Trial 2020-2021 outcomes 1912345116";
+const SCRATCH_ORIGIN = "https://scope.example";
+const SCRATCH_FILES = [
+  "_pillars.qmd", "R/config.R", "R/pillar_cards.R", "R/site_summary.R", "data/site.yml", "data/pillar-copy.yml",
+  "includes/person-jsonld.html", "js", "assets/images", "styles"
+];
+const SCRATCH_OPTIONS = { resources: ["js/*.js", "assets/images/*", "assets/vendor/**", "data/generated/talks.geojson"], theme: "styles/styles.scss", renv: true };
+
+test.describe("contact-leak scan: data-derived text is out of scope", () => {
+  let scratch;
+  // The fixture data with DOI labels, titles, a journal, an author and an
+  // organisation that look like phone numbers, and mailto: links, on records
+  // that Selected work and the pillar outputs show.
+  const scratchPublications = () => {
+    const records = structuredClone(publications);
+    const byKey = (key) => records.find((record) => record.key === key);
+    Object.assign(byKey("pub-1"), { title: DIGIT_TITLE, doi_url: `https://doi.org/${DOIS[0]}`, journal: "Journal 2020 0415 0001" });
+    Object.assign(byKey("pub-2"), { doi_url: `https://doi.org/${DOIS[1]}`, author: `Roe, R.; Ward ${"0".repeat(5)} ${"0".repeat(6)}` });
+    Object.assign(byKey("pub-5"), { doi_url: `https://doi.org/${DOIS[2]}` });
+    records.push({ ...byKey("pub-2"), key: "pub-6", slug: "pub-6", title: "Correspondence 0000 111 2222", doi_url: `mailto:${FAKE.linkEmail}` });
+    return records;
+  };
+  const scratchTalks = () => {
+    const records = structuredClone(talks);
+    const byKey = (key) => records.find((record) => record.key === key);
+    Object.assign(byKey("talk-1"), { title: DIGIT_TITLE, slides_url: `mailto:${FAKE.linkEmail}` });
+    Object.assign(byKey("talk-2"), { organization: "Example Institute 0000 111222" });
+    return records;
+  };
+
+  test.beforeAll(async ({}, testInfo) => {
+    testInfo.setTimeout(300_000);
+    scratch = renderScratchSite(
+      "contact-scope-data-",
+      ["index.qmd", "research/index.qmd", "publications/index.qmd", "talks/index.qmd", "templates", "assets/vendor", ...SCRATCH_FILES],
+      {
+        "publications.yml": scratchPublications(),
+        "talks.yml": scratchTalks(),
+        "pillars.json": JSON.parse(readGenerated("pillars.json")),
+        "talks.geojson": JSON.parse(readGenerated("talks.geojson"))
+      },
+      SCRATCH_OPTIONS
+    );
+  });
+
+  test.afterAll(() => {
+    if (scratch) rmSync(scratch, { recursive: true, force: true });
+  });
+
+  test("DOI labels, digit titles and mailto: links in spreadsheet text do not fail the scan", async ({ page }) => {
+    await routeScratchSite(page, scratch, SCRATCH_ORIGIN);
+    const shown = {
+      "/publications/": [...DOIS.map((doi) => `DOI ${doi}`), DIGIT_TITLE, "Journal 2020 0415 0001", `Email ${FAKE.linkEmail}`],
+      "/talks/": [DIGIT_TITLE, "Example Institute 0000 111222"],
+      "/": [DIGIT_TITLE, "Journal 2020 0415 0001"],
+      "/research/": [DIGIT_TITLE]
+    };
+    for (const [route, strings] of Object.entries(shown)) {
+      await page.goto(`${SCRATCH_ORIGIN}${route}`);
+      // Open Pillar 1 (its outputs include the digit title) where the script
+      // collapses the panels; without JavaScript every panel is open.
+      if (route === "/research/" && (await page.locator("[data-pillar-component].js-enhanced").count()) === 1) {
+        await page.locator("#pillar-1-toggle").click();
+      }
+      // The data is on the page, and an unscoped scan would flag it ...
+      const body = await page.evaluate(() => document.body.innerText);
+      const html = await page.content();
+      for (const string of strings) expect(`${body}\n${html}`, `${route}: ${string}`).toContain(string);
+      expect(phoneLike(body).length, route).toBeGreaterThan(0);
+      // ... but it is spreadsheet text, outside the scan.
+      const { findings } = await contactLeaks(page);
+      expect(findings, route).toEqual([]);
+    }
+    // The publication links themselves: the three DOIs and the mailto: one.
+    await page.goto(`${SCRATCH_ORIGIN}/publications/`);
+    for (const doi of DOIS) await expect(page.locator(`a[href="https://doi.org/${doi}"]`)).toHaveCount(1);
+    await expect(page.locator(`a[href="mailto:${FAKE.linkEmail}"]`)).toHaveCount(1);
+  });
+});
+
+test.describe("contact-leak scan: site-authored text is in scope", () => {
+  let scratch;
+
+  test.beforeAll(async ({}, testInfo) => {
+    testInfo.setTimeout(300_000);
+    // The real About page with an extra authored paragraph, and a navbar and
+    // footer carrying fake contact details.
+    const about = readFileSync(path.join(repoRoot, "about", "index.qmd"), "utf8");
+    scratch = renderScratchSite(
+      "contact-scope-authored-",
+      SCRATCH_FILES,
+      { "publications.yml": publications, "talks.yml": talks },
+      {
+        ...SCRATCH_OPTIONS,
+        website: [
+          "navbar:",
+          "  left:",
+          "    - href: about/index.qmd",
+          `      text: "Call ${FAKE.navbarPhone}"`,
+          "page-footer:",
+          `  center: "Write to ${FAKE.footerEmail} or [ring](tel:000) us"`
+        ],
+        write: {
+          "about/index.qmd": `${about}\nCall me on ${FAKE.prosePhone}, write to ${FAKE.proseEmail} or [send a message](mailto:${FAKE.linkEmail}).\n`
+        }
+      }
+    );
+  });
+
+  test.afterAll(() => {
+    if (scratch) rmSync(scratch, { recursive: true, force: true });
+  });
+
+  test("phone- and email-like text and contact links in prose, navbar or footer fail the scan", async ({ page }) => {
+    await routeScratchSite(page, scratch, SCRATCH_ORIGIN);
+    await page.goto(`${SCRATCH_ORIGIN}/about/`);
+    await expect(page.locator("main")).toContainText("Selected methods");
+    const { findings } = await contactLeaks(page);
+    expect(findings).toEqual(expect.arrayContaining([
+      `phone-like text: ${FAKE.prosePhone}`,
+      `phone-like text: ${FAKE.navbarPhone}`,
+      `email-like text: ${FAKE.proseEmail}`,
+      `email-like text: ${FAKE.footerEmail}`,
+      `email-like link or metadata: ${FAKE.linkEmail}`,
+      `contact link: mailto:${FAKE.linkEmail}`,
+      "contact link: tel:000"
+    ]));
+  });
 });

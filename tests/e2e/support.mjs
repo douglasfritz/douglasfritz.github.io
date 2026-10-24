@@ -108,7 +108,10 @@ export const queryOf = (page) => Object.fromEntries(new URL(page.url()).searchPa
 // is a theme file among `files` (the site's styles), if any. With `renv`,
 // R code chunks run with this repository's renv library (the scratch site
 // gets an .Rprofile that activates it), as they do in the real site.
-export function renderScratchSite(prefix, files, data, { resources = ["js/*.js"], theme, renv = false } = {}) {
+// `website` lines go under the scratch _quarto.yml's `website:` key (a
+// navbar or footer); `write` maps scratch paths to text written after the
+// files are copied (a page variant), never into the repository.
+export function renderScratchSite(prefix, files, data, { resources = ["js/*.js"], theme, renv = false, website = [], write = {} } = {}) {
   const scratch = mkdtempSync(path.join(tmpdir(), prefix));
   if (renv) {
     const project = JSON.stringify(root.replace(/[\\/]+$/, ""));
@@ -117,12 +120,17 @@ export function renderScratchSite(prefix, files, data, { resources = ["js/*.js"]
   writeFileSync(path.join(scratch, "_quarto.yml"), [
     "project:", "  type: website", "  render:", '    - "*.qmd"', "  resources:",
     ...resources.map((resource) => `    - ${JSON.stringify(resource)}`),
+    ...(website.length > 0 ? ["website:", ...website.map((line) => `  ${line}`)] : []),
     "format:", "  html:", "    html-math-method: plain",
     ...(theme ? [`    theme: ${JSON.stringify(theme)}`] : []), ""
   ].join("\n"));
   for (const file of files) {
     mkdirSync(path.dirname(path.join(scratch, file)), { recursive: true });
     cpSync(path.join(root, file), path.join(scratch, file), { recursive: true });
+  }
+  for (const [file, text] of Object.entries(write)) {
+    mkdirSync(path.dirname(path.join(scratch, file)), { recursive: true });
+    writeFileSync(path.join(scratch, file), text);
   }
   mkdirSync(path.join(scratch, "data", "generated"), { recursive: true });
   for (const [name, records] of Object.entries(data)) {
