@@ -3,8 +3,17 @@ title: "Talks & Reach"
 description: "Douglas Fritz's talks and posters, newest first, with where each was hosted, its research pillars and links to any public event page, slides, poster or recording."
 # Card titles are not sections: no "#" anchor links on them.
 anchor-sections: false
+# The archive script runs before the map script (modules run in document
+# order); the map asks it for the current records (see js/archive-filters.js).
+# The map's libraries are self-hosted (assets/vendor/, npm run vendor:map);
+# js/talks-map.js loads their scripts itself, so that a missing library only
+# disables the map.
 include-in-header:
-  text: <script type="module" src="../js/archive-filters.js"></script>
+  text: |
+    <link rel="stylesheet" href="../assets/vendor/leaflet/leaflet.css">
+    <link rel="stylesheet" href="../assets/vendor/leaflet.markercluster/MarkerCluster.css">
+    <script type="module" src="../js/archive-filters.js"></script>
+    <script type="module" src="../js/talks-map.js"></script>
 listing:
   id: talks
   contents: ../data/generated/talks.yml

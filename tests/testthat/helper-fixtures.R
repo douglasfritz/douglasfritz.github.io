@@ -6,7 +6,8 @@
 # conferences.csv: talk-1 (in person, Y), talk-2 (virtual with host
 # coordinates and a secondary pillar, Y), talk-3 (no coordinates, links or
 # description, Y), talk-4 (foundational, Y), talk-5 (N, unfinished),
-# talk-6 (blank flag). Both files pass full validation.
+# talk-6 (blank flag), talk-7 (virtual, Y, hosted at talk-1's exact location,
+# so the map has a co-located pair). Both files pass full validation.
 
 # Full header of each sheet tab, including CV-only columns that must never be
 # exported, so privacy tests see the same shape as the real source.

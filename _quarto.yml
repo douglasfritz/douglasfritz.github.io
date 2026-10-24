@@ -5,9 +5,13 @@ project:
   # Quarto would otherwise render as pages of their own.
   render:
     - "*.qmd"
-  # Browser modules, loaded by the archive pages.
+  # Browser modules, loaded by the archive pages; the talk map's self-hosted
+  # libraries (npm run vendor:map) and its data. Of the generated data files
+  # only the GeoJSON is published; the pages render from the others.
   resources:
     - "js/*.js"
+    - "assets/vendor/**"
+    - "data/generated/talks.geojson"
 
 website:
   title: "Douglas Fritz"

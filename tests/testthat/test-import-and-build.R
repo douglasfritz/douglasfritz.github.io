@@ -73,7 +73,7 @@ test_that("the fixture build writes the five public files and reports warnings",
   expect_equal(result$status, 0L, info = result$stderr)
   expect_match(
     result$stdout,
-    "Validated 5 publications \\(3 public\\) and 6 talks \\(4 public, 3 mapped\\)\\. Wrote 5 files to "
+    "Validated 5 publications \\(3 public\\) and 7 talks \\(5 public, 4 mapped\\)\\. Wrote 5 files to "
   )
   expect_match(result$stderr, "WARNING: talks: talk-3 has no verified coordinates", fixed = TRUE)
   expect_match(result$stderr, "WARNING: publications: pub-2 has no plain_summary", fixed = TRUE)
@@ -83,13 +83,13 @@ test_that("the fixture build writes the five public files and reports warnings",
     c(".gitkeep", expected_output_files)
   )
   expect_length(yaml::read_yaml(file.path(output_dir, "publications.yml")), 3)
-  expect_length(yaml::read_yaml(file.path(output_dir, "talks.yml")), 4)
+  expect_length(yaml::read_yaml(file.path(output_dir, "talks.yml")), 5)
   geojson <- jsonlite::read_json(file.path(output_dir, "talks.geojson"))
   expect_identical(geojson$type, "FeatureCollection")
-  expect_length(geojson$features, 3)
+  expect_length(geojson$features, 4)
   expect_named(jsonlite::read_json(file.path(output_dir, "pillars.json")), site_config$pillars)
   metadata <- jsonlite::read_json(file.path(output_dir, "build-metadata.json"))
-  expect_identical(metadata$public_rows, list(publications = 3L, talks = 4L))
+  expect_identical(metadata$public_rows, list(publications = 3L, talks = 5L))
 })
 
 test_that("a tab with no public rows exits nonzero and leaves the output unchanged", {

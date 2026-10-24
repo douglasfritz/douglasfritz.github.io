@@ -363,7 +363,7 @@ test("the script reveals labelled filters with options from the data and a polit
   await expect(c.virtual.locator("option")).toHaveText(["All formats", ...formats.map(formatLabel)]);
   await expect(c.foundational).toHaveAttribute("type", "checkbox");
   await expect(c.foundational).not.toBeChecked();
-  const count = page.getByRole("status");
+  const count = page.locator("#talk-filters").getByRole("status");
   await expect(count).toHaveAttribute("aria-live", "polite");
   await expect(count).toHaveAttribute("aria-atomic", "true");
   await expectView(page, DEFAULT);
@@ -638,11 +638,35 @@ test.describe("talk template escaping", { tag: "@js" }, () => {
       location_display: "Testonia"
     }
   ];
+  // The first record is mapped (at its host: it is virtual), with the same
+  // hostile text in its GeoJSON properties.
+  const hostileGeojson = {
+    type: "FeatureCollection",
+    features: [{
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [151.1111, -33.3333] },
+      properties: {
+        key: hostile[0].key,
+        title: hostile[0].title,
+        organization: hostile[0].organization,
+        location: hostile[0].location_display,
+        virtual_status: "Y",
+        primary_pillar: hostile[0].primary_pillar,
+        year: hostile[0].year
+      }
+    }]
+  };
   let scratch;
 
   test.beforeAll(async ({}, testInfo) => {
     testInfo.setTimeout(300_000);
-    scratch = renderScratchSite("talk-template-", ["talks/index.qmd", "templates/talk.ejs.md", "js/archive-filters.js", "js/filter-core.js"], { "talks.yml": hostile });
+    scratch = renderScratchSite(
+      "talk-template-",
+      ["talks/index.qmd", "templates/talk.ejs.md", "js/archive-filters.js", "js/filter-core.js", "js/talks-map.js", "js/map-state.js", "assets/vendor", "styles"],
+      { "talks.yml": hostile, "talks.geojson": hostileGeojson },
+      // The site's styles give the map its height.
+      { resources: ["js/*.js", "assets/vendor/**", "data/generated/talks.geojson"], theme: "styles/styles.scss" }
+    );
   });
 
   test.afterAll(() => {
@@ -653,13 +677,19 @@ test.describe("talk template escaping", { tag: "@js" }, () => {
     await routeScratchSite(page, scratch, origin);
     await page.goto(`${origin}${PAGE}`);
     await expect(page.locator("form[data-archive-filters]")).toBeVisible();
+    await expect(page.locator("#talk-map")).toHaveAttribute("data-map-state", "ready");
 
+    // Outside the Leaflet container (tiles are images there; its own test is
+    // below), nothing in the listing is an element the data could inject.
     const listing = page.locator("#listing-talks");
-    await expect(listing.locator("img, svg, b, i, em, strong, iframe, object, embed, script")).toHaveCount(0);
+    await expect(listing.locator(":is(img, svg, b, i, em, strong, iframe, object, embed, script):not(#talk-map-canvas *)")).toHaveCount(0);
     const handlers = await listing.locator("*").evaluateAll((nodes) =>
       nodes.flatMap((node) => [...node.attributes].map((attr) => attr.name)).filter((name) => name.startsWith("on")));
     expect(handlers).toEqual([]);
-    const links = await listing.locator("a").evaluateAll((nodes) => nodes.map((node) => ({ href: node.href, text: node.textContent })));
+    // The map region's own links are static.
+    expect(await listing.locator("#talk-map a:not(#talk-map-canvas *)").evaluateAll((nodes) => nodes.map((node) => [node.hash, node.textContent])))
+      .toEqual([["#talk-archive-heading", "Skip map and view talks"], ["#talk-archive-heading", "View talks as a list"]]);
+    const links = await listing.locator("a:not(#talk-map *)").evaluateAll((nodes) => nodes.map((node) => ({ href: node.href, text: node.textContent })));
     expect(links).toEqual(hostile.flatMap(expectedLinks));
     expect(links.map((link) => link.href)).toEqual([asUrl(hostile[0].slides_url), "mailto:someone@example.org"]);
 
@@ -710,6 +740,36 @@ test.describe("talk template escaping", { tag: "@js" }, () => {
     await c.text.fill("after fence");
     await expectView(page, { text: "after fence", foundational: INCLUDE }, hostile);
     expect(await visibleKeys(page)).toEqual([hostile[0].key]);
+    expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+  });
+
+  test("hostile text in the map's markers and popups stays text", async ({ page }) => {
+    await routeScratchSite(page, scratch, origin);
+    await page.goto(`${origin}${PAGE}`);
+    const map = page.locator("#talk-map");
+    await expect(map).toHaveAttribute("data-map-state", "ready");
+    const record = hostile[0];
+    expect(JSON.parse(await page.locator("#talk-map-canvas").getAttribute("data-marker-keys"))).toEqual([record.key]);
+    const marker = page.locator(`#talk-map-canvas .talk-marker[data-key=${cssString(record.key)}]`);
+    await expect(marker).toHaveCount(1);
+    const label = `${record.title}. Virtual, hosted by ${record.organization}, ${record.location_display}. Pillar 1.`;
+    await expect(marker).toHaveAttribute("aria-label", label);
+    await expect(marker).toHaveAttribute("title", label);
+
+    await card(page, record.key).getByRole("button", { name: /^Show on map/ }).click();
+    const popup = page.locator("#talk-map-canvas .talk-popup");
+    await expect(popup).toBeVisible();
+    const textOf = (locator) => locator.evaluate((node) => node.textContent);
+    expect(await textOf(popup.locator(".talk-popup-place"))).toBe(`Host location: ${record.location_display}`);
+    expect(await textOf(popup.locator(".talk-popup-title"))).toBe(record.title);
+    expect(await textOf(popup.locator(".talk-popup-meta"))).toBe(`Virtual Hosted by ${record.organization} · ${record.year}`);
+    expect(await popup.locator(".talk-popup-title").getAttribute("href")).toBe(`#talk-${record.slug}`);
+    // Only the popup's own elements, without handlers or other attributes
+    // carrying data.
+    const tags = await popup.locator("*").evaluateAll((nodes) => [...new Set(nodes.map((node) => node.tagName.toLowerCase()))].sort());
+    expect(tags).toEqual(["a", "li", "p", "span", "ul"]);
+    const attributes = await popup.locator("*").evaluateAll((nodes) => [...new Set(nodes.flatMap((node) => [...node.attributes].map((attr) => attr.name)))].sort());
+    expect(attributes).toEqual(["class", "data-key", "href"]);
     expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
   });
 });

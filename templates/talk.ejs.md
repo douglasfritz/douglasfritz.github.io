@@ -1,6 +1,10 @@
 <%
 // Talk archive: the filter form that js/archive-filters.js reveals, the reach
-// summary and one card per record in data/generated/talks.yml.
+// summary, the map region that js/talks-map.js reveals (static markup only:
+// the markers come from data/generated/talks.geojson) and one card per record
+// in data/generated/talks.yml. The map's two links to the archive heading
+// are plain fragment links; the heading has tabindex="-1", so following
+// them moves focus there.
 
 // ==== Shared template helpers: begin ====
 // Copied byte-for-byte into every templates/*.ejs.md (Quarto listing
@@ -174,6 +178,32 @@ const formats = ["N", "Y"].filter((value) => items.some((item) => item.virtual_s
   </dl>
 </section>
 
+<section class="talk-map" id="talk-map" aria-labelledby="talk-map-heading"
+  data-talk-map data-talk-map-data="../data/generated/talks.geojson" data-talk-map-records="talk-records" hidden>
+  <h2 id="talk-map-heading">Talk locations</h2>
+  <p class="talk-map-intro">Each marker is the documented location of an in-person event, or the host's location for a virtual talk. Only talks with a verified location have a marker; every talk is in the list below.</p>
+  <p class="talk-map-message" role="status" data-talk-map-message></p>
+  <div class="talk-map-body" data-talk-map-body>
+    <p class="talk-map-skip"><a href="#talk-archive-heading">Skip map and view talks</a></p>
+    <div class="talk-map-canvas" id="talk-map-canvas" role="region" aria-label="Interactive map of talk locations" data-talk-map-canvas data-marker-keys="[]"></div>
+    <p class="talk-map-coverage" id="talk-map-coverage" data-talk-map-coverage></p>
+    <div class="talk-map-legend">
+      <h3 id="talk-map-key-heading">Map key</h3>
+      <p class="talk-map-key-note">A marker's number and fill show the talk's primary pillar; its shape shows the format.</p>
+      <ul class="talk-map-key" aria-labelledby="talk-map-key-heading">
+<% pillars.forEach((pillar, index) => { %>
+        <li data-pillar="<%= esc(pillar) %>" data-pillar-number="<%= index + 1 %>"><span class="talk-marker talk-marker-p<%= index + 1 %> talk-marker-in-person" aria-hidden="true"><span class="talk-marker-number"><%= index + 1 %></span></span> Pillar <%= index + 1 %>: <%= esc(pillar) %></li>
+<% }); %>
+        <li><span class="talk-marker talk-marker-p0 talk-marker-in-person" aria-hidden="true"></span> Circle: an in-person talk, at the event location</li>
+        <li><span class="talk-marker talk-marker-p0 talk-marker-virtual" aria-hidden="true"><span class="talk-marker-virtual-tag">V</span></span> Square with a double outline and a “V”: a virtual talk, shown at its host's location</li>
+        <li><span class="talk-cluster" aria-hidden="true"><span class="talk-cluster-count">2</span></span> Circle with a count: talks at the same or nearby locations; select it to zoom in or spread them out</li>
+      </ul>
+    </div>
+    <p class="talk-map-tiles">The background map is loaded from OpenStreetMap's tile servers. Map data © OpenStreetMap contributors.</p>
+    <p class="talk-map-list"><a href="#talk-archive-heading">View talks as a list</a></p>
+  </div>
+</section>
+
 <section class="talk-archive" aria-labelledby="talk-archive-heading">
 <h2 class="archive-heading" id="talk-archive-heading" tabindex="-1">Talk archive</h2>
 <div class="archive-records" id="talk-records">
@@ -201,7 +231,7 @@ const formats = ["N", "Y"].filter((value) => items.some((item) => item.virtual_s
   data-foundational="<%= esc(item.foundational_work) %>"
   data-links="<%= links.length %>">
   <p class="record-kicker"><time class="record-date" datetime="<%= esc(date.iso) %>"><%= esc(date.text) %></time></p>
-  <h3 class="record-title" id="<%= esc(cardId) %>-title" data-search><%= esc(item.title) %></h3>
+  <h3 class="record-title" id="<%= esc(cardId) %>-title" tabindex="-1" data-search><%= esc(item.title) %></h3>
   <p class="record-authors" data-search><%= esc(item.author) %></p>
 <% if (isVirtual) { %>
   <p class="talk-location"><span class="virtual-badge">Virtual</span> — hosted by <span class="talk-host" data-search><%= esc(item.organization) %></span><% if (item.location_display) { %>, <span class="talk-place" data-search><%= esc(item.location_display) %></span><% } %></p>

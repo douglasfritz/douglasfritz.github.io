@@ -22,6 +22,15 @@
 //   #<records> [data-archive-empty]  the "no matches" message (hidden)
 //   #<summary> [data-reach=NAME]     a reach figure: presentations, countries,
 //                                    hosts, cities, links or years
+//
+// Events (on document), so that other modules (the talk map) can mirror the
+// records shown without filtering anything themselves:
+//   "archive:filtered"  dispatched by this module after every render, with
+//                       detail.keys: the data-key of every record shown, in
+//                       archive order (a fresh array each time)
+//   "archive:request"   dispatched by another module; this module answers by
+//                       dispatching "archive:filtered" again with the current
+//                       keys
 import {
   filterRecords,
   formatReach,
@@ -102,6 +111,12 @@ function enhanceArchive(form) {
     }
   };
 
+  // The keys of the records shown by the latest render.
+  let shownKeys = [];
+  const announce = () => {
+    document.dispatchEvent(new CustomEvent("archive:filtered", { detail: { keys: [...shownKeys] } }));
+  };
+
   const render = (state) => {
     const { shown, hiddenFoundational } = filterRecords(records, state);
     const visible = new Set(shown);
@@ -120,8 +135,15 @@ function enhanceArchive(form) {
         if (value !== undefined && figure.textContent !== value) figure.textContent = value;
       }
     }
-    // Task 6 (map) hooks in here, after the cards and figures are updated:
-    //   form.dispatchEvent(new CustomEvent("archive:filtered", { bubbles: true, detail: { state, keys: shown.map((record) => record.key) } }));
+    // Announce the records shown, after the cards and figures are updated.
+    // Load order: the first render runs as soon as this module does, before a
+    // module included after it (js/talks-map.js) can listen, and the map
+    // loads its data asynchronously anyway. So a listener must not rely on
+    // seeing this first event: it listens for "archive:filtered" and then
+    // dispatches "archive:request", which this module answers (below) with the
+    // current keys. That works whichever module runs first.
+    shownKeys = shown.map((record) => record.key);
+    announce();
   };
 
   const update = () => {
@@ -152,6 +174,8 @@ function enhanceArchive(form) {
   writeControls(initial);
   render(initial);
   syncUrl(initial);
+  // Late listeners ask for the current keys (see render).
+  document.addEventListener("archive:request", announce);
 }
 
 for (const form of document.querySelectorAll("form[data-archive-filters]")) enhanceArchive(form);

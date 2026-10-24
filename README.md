@@ -92,17 +92,58 @@ spanned. It describes the talks currently listed and is recomputed on every filt
 shows audience numbers. A virtual talk is labelled "Virtual — hosted by" its host and location, never
 as a visit.
 
+### Talk map
+
+Between the reach summary and the archive, `js/talks-map.js` shows a [Leaflet](https://leafletjs.com)
+map of the talks currently listed, with
+[Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster) for nearby talks. It is an
+extra view of the list, never the only way to reach a talk:
+
+- **Data.** Markers come from `data/generated/talks.geojson`, which `_quarto.yml` publishes
+  (alone among the generated files) and the page fetches page-relative
+  (`../data/generated/talks.geojson`, so `/data/generated/talks.geojson`). Only talks with verified
+  coordinates have a marker; a virtual talk sits at its host's location and its marker says
+  "Virtual" and "hosted by". Talks without coordinates stay in the list and in every count; the
+  map says how many of the listed talks have a map location.
+- **Libraries.** Leaflet and Leaflet.markercluster are exact-pinned devDependencies, copied into
+  `assets/vendor/` (scripts, CSS, Leaflet's images and both licences) and committed, so the page
+  loads no third-party script. After changing either version run `npm ci && npm run vendor:map`
+  and commit `assets/vendor/`; `tests/js/vendor-map.test.mjs` checks the copies against the pinned
+  packages. Only the Talks page loads them.
+- **Tiles.** The background map is loaded from OpenStreetMap's tile servers
+  (`https://tile.openstreetmap.org/`), the page's only third-party requests; the map shows the
+  "© OpenStreetMap contributors" attribution and a sentence saying where tiles come from.
+- **Synchronization.** The map never filters. After every render `js/archive-filters.js`
+  dispatches `archive:filtered` on `document` with `detail.keys`, the keys of the records shown.
+  Because the archive renders as soon as its module runs and the map loads its data
+  asynchronously, the map listens first and then dispatches `archive:request`, which the archive
+  answers with its current keys; this works whichever script runs first, including when the page
+  is opened with a filter in the URL. If the archive script fails, nothing is hidden, so the map
+  shows every card that has a location.
+- **Focus.** Selecting a marker (click, Enter or Space) opens its popup and moves focus to the
+  talk's card heading. A card's "Show on map" button highlights its marker, opens the popup and
+  moves focus into it; Escape closes it and returns focus to the button. Popups list every listed
+  talk at that location, with links to the cards. "Skip map and view talks" and "View talks as a
+  list" move focus to the archive heading. With `prefers-reduced-motion`, nothing on the map
+  animates.
+- **Failures.** If Leaflet, the GeoJSON (an HTTP error or invalid data) or the map markup is
+  unavailable, the map region shows one short message and the archive works as before. Failed
+  tiles keep the map and add a short note. Without JavaScript the map region stays hidden.
+- **Test hook.** `#talk-map[data-map-state]` is `loading`, `ready` or `unavailable`, and
+  `#talk-map-canvas[data-marker-keys]` holds the keys of the markers in the cluster group as a
+  sorted JSON array, updated on every sync. The browser tests compare it with the visible cards.
+
 The tests need [Node.js](https://nodejs.org/) 22 or later. Install the pinned tools once:
 
 ```bash
-npm ci                                  # Playwright, http-server, js-yaml (exact versions)
+npm ci                                  # Playwright, http-server, js-yaml, Leaflet (exact versions)
 npx playwright install chromium         # the browser Playwright drives
 ```
 
 Then:
 
 ```bash
-npm run test:unit                       # pure filter logic (node --test)
+npm run test:unit                       # pure filter and map logic, vendored files (node --test)
 npm run data:fixture                    # build data/generated/ from the synthetic fixtures
 quarto render                           # build _site/ from that data
 npm run test:e2e                        # browser tests against _site/, with and without JavaScript
@@ -111,6 +152,8 @@ npm run test:e2e                        # browser tests against _site/, with and
 The browser tests read `data/generated/` and check the rendered pages against it, so they work
 with fixture or live data. With fixture data they also require the cases they check to be present
 (an In Review record, secondary pillars, foundational work, a virtual talk, a talk without
-coordinates, and so on); when testing live data that may lack them, set `E2E_DATA=live`. The
-template-escaping tests render small scratch sites with hostile synthetic records, so `quarto`
-must be on `PATH` (or set `QUARTO` to its path).
+coordinates, two talks at one location, and so on); when testing live data that may lack them, set
+`E2E_DATA=live`. The template-escaping tests render small scratch sites with hostile synthetic
+records, so `quarto` must be on `PATH` (or set `QUARTO` to its path). Every browser test serves a
+blank image for each OpenStreetMap tile, so the tests never contact the tile servers, and fails on
+any script error, console error or failed request it did not cause on purpose.

@@ -65,7 +65,7 @@ test_that("only exact-Y source rows are exported", {
   expect_setequal(built$publications$key, exact_y_keys(pubs))
   expect_setequal(built$publications$key, c("pub-1", "pub-2", "pub-5"))
   expect_setequal(built$talks$key, exact_y_keys(talks))
-  expect_setequal(built$talks$key, c("talk-1", "talk-2", "talk-3", "talk-4"))
+  expect_setequal(built$talks$key, c("talk-1", "talk-2", "talk-3", "talk-4", "talk-7"))
 
   # The fixtures hold one N row and one blank row per tab; neither is exported.
   expect_identical(pubs$website_include[match(c("pub-3", "pub-4"), pubs$key)], c("N", NA))
@@ -78,7 +78,7 @@ test_that("only exact-Y source rows are exported", {
   talks$website_include[talks$key == "talk-4"] <- "y"
   built <- build_fixture_data(pubs, talks)
   expect_setequal(built$publications$key, c("pub-1", "pub-2"))
-  expect_setequal(built$talks$key, c("talk-1", "talk-2", "talk-3"))
+  expect_setequal(built$talks$key, c("talk-1", "talk-2", "talk-3", "talk-7"))
 })
 
 test_that("records are sorted newest first, then by title", {
@@ -86,14 +86,14 @@ test_that("records are sorted newest first, then by title", {
   talks <- talk_fixture()
   reversed <- build_fixture_data(pubs[rev(seq_len(nrow(pubs))), ], talks[rev(seq_len(nrow(talks))), ])
   expect_identical(reversed$publications$key, c("pub-2", "pub-1", "pub-5"))
-  expect_identical(reversed$talks$key, c("talk-1", "talk-2", "talk-3", "talk-4"))
+  expect_identical(reversed$talks$key, c("talk-1", "talk-2", "talk-3", "talk-7", "talk-4"))
 
   # Equal years (publications) or dates (talks) fall back to the title.
   pubs$year[pubs$key %in% c("pub-1", "pub-5")] <- 2020L
   talks$date[talks$key == "talk-4"] <- talks$date[talks$key == "talk-1"]
   tied <- build_fixture_data(pubs[rev(seq_len(nrow(pubs))), ], talks)
   expect_identical(tied$publications$key, c("pub-2", "pub-1", "pub-5"))
-  expect_identical(tied$talks$key, c("talk-4", "talk-1", "talk-2", "talk-3"))
+  expect_identical(tied$talks$key, c("talk-4", "talk-1", "talk-2", "talk-3", "talk-7"))
 })
 
 test_that("derived fields: ISO dates, location text and tag arrays", {
@@ -185,7 +185,7 @@ test_that("YAML records omit missing values and keep strings as strings", {
   talk_records <- yaml::yaml.load(talk_yaml)
   expect_null(names(pub_records))
   expect_length(pub_records, 3)
-  expect_length(talk_records, 4)
+  expect_length(talk_records, 5)
 
   # R's YAML 1.1 parser reads unquoted Y/N, true and 2016 as non-strings.
   keys <- vapply(pub_records, function(x) x$key, character(1))
@@ -233,7 +233,7 @@ test_that("unmappable talks remain in archive but not GeoJSON", {
 
 test_that("only talks with an in-bounds coordinate pair are mapped", {
   built <- build_fixture_data()
-  expect_identical(feature_keys(built$geojson), c("talk-1", "talk-2", "talk-4"))
+  expect_identical(feature_keys(built$geojson), c("talk-1", "talk-2", "talk-7", "talk-4"))
   expect_true("talk-3" %in% built$talks$key)
   for (feature in built$geojson$features) {
     expect_identical(names(feature$properties), expected_feature_properties)
@@ -243,8 +243,8 @@ test_that("only talks with an in-bounds coordinate pair are mapped", {
   talks$latitude[talks$key == "talk-1"] <- 95
   talks$longitude[talks$key == "talk-4"] <- NA
   built <- build_fixture_data(talks = talks)
-  expect_identical(feature_keys(built$geojson), "talk-2")
-  expect_setequal(built$talks$key, c("talk-1", "talk-2", "talk-3", "talk-4"))
+  expect_identical(feature_keys(built$geojson), c("talk-2", "talk-7"))
+  expect_setequal(built$talks$key, c("talk-1", "talk-2", "talk-3", "talk-4", "talk-7"))
 })
 
 test_that("a virtual talk with host coordinates is mapped at its host", {
@@ -266,7 +266,7 @@ test_that("GeoJSON with no mappable talks is still a valid FeatureCollection", {
   built <- build_fixture_data(talks = talks)
   geojson <- jsonlite::parse_json(serialize_public_data(built)[["talks.geojson"]])
   expect_identical(geojson, list(type = "FeatureCollection", features = list()))
-  expect_identical(nrow(built$talks), 4L)
+  expect_identical(nrow(built$talks), 5L)
 })
 
 test_that("pillar summaries are keyed by exactly the four configured pillars", {
@@ -307,7 +307,8 @@ test_that("pillar counts and keys come from the exported archive records", {
   expect_identical(pillars[[1]]$talks[c("primary", "any")], list(primary = 1L, any = 1L))
   expect_identical(pillars[[3]]$talks[c("primary", "any")], list(primary = 1L, any = 2L))
   expect_identical(as_keys(pillars[[3]]$talks$keys), c("talk-2", "talk-3"))
-  expect_identical(pillars[[4]]$talks[c("primary", "any")], list(primary = 1L, any = 1L))
+  expect_identical(pillars[[4]]$talks[c("primary", "any")], list(primary = 2L, any = 2L))
+  expect_identical(as_keys(pillars[[4]]$talks$keys), c("talk-7", "talk-4"))
 })
 
 test_that("representative records are primary-pillar records, featured first, then newest, at most three", {
@@ -324,7 +325,7 @@ test_that("representative records are primary-pillar records, featured first, th
   talks$featured[public] <- "N"
   talks$featured[talks$key == "talk-3"] <- "Y"
   summary <- build_fixture_data(talks = talks)$pillars[[1]]$talks
-  expect_identical(summary$primary, 4L)
+  expect_identical(summary$primary, 5L)
   expect_identical(as_keys(summary$representative), c("talk-3", "talk-1", "talk-2"))
 })
 
@@ -339,8 +340,8 @@ test_that("build metadata records counts and tab names but no source location", 
   expect_type(metadata$schema_version, "character")
   expect_identical(metadata$source_tabs, list(publications = "Journal Articles", talks = "Conferences"))
   expect_identical(metadata$inclusion_rule, "website_include == 'Y'")
-  expect_identical(metadata$source_rows, list(publications = 5L, talks = 6L))
-  expect_identical(metadata$public_rows, list(publications = 3L, talks = 4L))
+  expect_identical(metadata$source_rows, list(publications = 5L, talks = 7L))
+  expect_identical(metadata$public_rows, list(publications = 3L, talks = 5L))
   expect_identical(as_keys(metadata$files), generated_files)
 
   json <- serialize_public_data(built)[["build-metadata.json"]]
@@ -359,7 +360,7 @@ test_that("serialization is deterministic and independent of source row order", 
   pubs <- publication_fixture()
   talks <- talk_fixture()
   first <- serialize_public_data(build_fixture_data(pubs, talks))
-  shuffled <- serialize_public_data(build_fixture_data(pubs[c(5, 3, 1, 4, 2), ], talks[c(4, 6, 2, 1, 5, 3), ]))
+  shuffled <- serialize_public_data(build_fixture_data(pubs[c(5, 3, 1, 4, 2), ], talks[c(4, 6, 7, 2, 1, 5, 3), ]))
   expect_named(first, generated_files)
   expect_identical(first, shuffled)
 })
@@ -393,10 +394,10 @@ test_that("writing creates the five files in a new directory with no staging lef
     expect_identical(readr::read_file(file.path(output_dir, file)), contents[[file]], info = file)
   }
   expect_length(yaml::read_yaml(file.path(output_dir, "publications.yml")), 3)
-  expect_length(yaml::read_yaml(file.path(output_dir, "talks.yml")), 4)
-  expect_length(jsonlite::read_json(file.path(output_dir, "talks.geojson"))$features, 3)
+  expect_length(yaml::read_yaml(file.path(output_dir, "talks.yml")), 5)
+  expect_length(jsonlite::read_json(file.path(output_dir, "talks.geojson"))$features, 4)
   expect_named(jsonlite::read_json(file.path(output_dir, "pillars.json")), site_config$pillars)
-  expect_identical(jsonlite::read_json(file.path(output_dir, "build-metadata.json"))$public_rows$talks, 4L)
+  expect_identical(jsonlite::read_json(file.path(output_dir, "build-metadata.json"))$public_rows$talks, 5L)
 })
 
 test_that("writing into an existing directory replaces only the generated files", {
@@ -495,11 +496,11 @@ test_that("generated files hold no private fields, source locations or excluded 
   pub_records <- yaml::read_yaml(file.path(output_dir, "publications.yml"))
   talk_records <- yaml::read_yaml(file.path(output_dir, "talks.yml"))
   expect_length(pub_records, 3)
-  expect_length(talk_records, 4)
+  expect_length(talk_records, 5)
   expect_setequal(unique(unlist(lapply(pub_records, names))), expected_publication_fields)
   expect_setequal(unique(unlist(lapply(talk_records, names))), expected_talk_fields)
   features <- jsonlite::read_json(file.path(output_dir, "talks.geojson"))$features
-  expect_length(features, 3)
+  expect_length(features, 4)
   for (feature in features) {
     expect_identical(names(feature), c("type", "geometry", "properties"))
     expect_identical(names(feature$properties), expected_feature_properties)

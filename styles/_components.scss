@@ -189,3 +189,154 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
   .reach-figures { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
   .reach-figure { flex-direction: column-reverse; justify-content: flex-end; align-items: stretch; padding-block: 0.5rem; }
 }
+
+// Talk map (spec 8, 13.2, 13.5, 14). Leaflet's own CSS loads on the talk page
+// only, after this theme, so every override here outranks Leaflet's selector
+// (a .talk-map prefix plus Leaflet's own classes). The region is hidden until
+// js/talks-map.js runs.
+.talk-map {
+  margin-block: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: $surface;
+  border: 1px solid $cool-steel;
+  border-radius: 0.5rem;
+}
+.talk-map h2 { margin: 0 0 0.25rem; padding: 0; border: 0; font-size: 1.35rem; }
+.talk-map-intro { margin: 0 0 0.75rem; font-size: 0.9rem; }
+// The status line is empty (and takes no room) until the map fails or its
+// tiles do.
+.talk-map-message { margin: 0; font-weight: 600; }
+.talk-map-message:not(:empty) { margin-block: 0.25rem 0.75rem; padding: 0.5rem 0.75rem; border: 2px dashed $jet-black; }
+.talk-map-skip, .talk-map-list { margin: 0 0 0.5rem; }
+.talk-map-skip a, .talk-map-list a { display: inline-block; padding-block: 0.25rem; font-weight: 600; }
+// An explicit height (Leaflet needs one) and never wider than its column.
+.talk-map-canvas {
+  height: 24rem;
+  max-width: 100%;
+  border: 1px solid $blue-slate;
+  border-radius: 0.375rem;
+}
+@media (min-width: 48rem) {
+  .talk-map-canvas { height: 28rem; }
+}
+// Clear the fixed navbar when the map or a card is scrolled into view.
+.talk-map-canvas, .talk-card, .archive-heading { scroll-margin-top: 5rem; }
+.talk-map-coverage { margin: 0.5rem 0 0; font-size: 0.9rem; }
+.talk-map-legend h3 { margin: 1rem 0 0.25rem; padding: 0; border: 0; font-size: 1.1rem; }
+.talk-map-key-note { margin: 0 0 0.5rem; font-size: 0.9rem; }
+.talk-map-key { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.talk-map-key li { display: flex; align-items: center; gap: 0.75rem; }
+.talk-map-key .talk-marker, .talk-map-key .talk-cluster { flex: none; position: relative; }
+.talk-map-tiles { margin: 0.75rem 0 0.5rem; font-size: 0.85rem; }
+
+// Leaflet, restyled in the site palette: Jet Black text and controls on
+// white, Blue Slate links on white (5.5:1), the site's focus ring.
+.talk-map .leaflet-container { font-family: inherit; font-size: 0.95rem; line-height: 1.4; background: $light-blue; }
+.talk-map .leaflet-container a { color: $blue-slate; }
+.talk-map .leaflet-container a:hover { color: $jet-black; }
+.talk-map .leaflet-touch .leaflet-bar, .talk-map .leaflet-bar { border: 2px solid $jet-black; box-shadow: none; }
+.talk-map .leaflet-container .leaflet-bar a { color: $jet-black; background-color: $surface; }
+.talk-map .leaflet-container .leaflet-bar a:hover { background-color: $light-cyan; }
+.talk-map .leaflet-container .leaflet-control-attribution { color: $jet-black; background: $surface; font-size: 0.75rem; }
+.talk-map .leaflet-container .leaflet-control-attribution a { text-decoration: underline; }
+.talk-map .leaflet-container:focus-visible,
+.talk-map .leaflet-container a:focus-visible,
+.talk-map .leaflet-container .leaflet-marker-icon:focus-visible,
+.talk-map .leaflet-container .talk-popup:focus-visible {
+  outline: $focus-ring;
+  outline-offset: $focus-ring-offset;
+}
+.talk-map .leaflet-container .leaflet-marker-icon:focus-visible { outline-offset: 4px; }
+
+// Popups: white with a Jet Black outline and text.
+.talk-map .leaflet-popup-content-wrapper,
+.talk-map .leaflet-popup-tip { color: $jet-black; background: $surface; box-shadow: 0 0 0 2px $jet-black; }
+.talk-map .leaflet-popup-content-wrapper { border-radius: 0.5rem; }
+.talk-map .leaflet-popup-content { margin: 0.75rem 0.9rem; font-size: 0.95rem; line-height: 1.4; }
+// Only the first line needs room for the close button.
+.talk-map .talk-popup > :first-child { padding-right: 1.75rem; }
+.talk-map .leaflet-container a.leaflet-popup-close-button {
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 2rem;
+  height: 2rem;
+  color: $jet-black;
+  font: 700 1.5rem/2rem $font-family-sans-serif;
+}
+.talk-map .leaflet-popup-content .talk-popup p { margin: 0 0 0.35rem; }
+.talk-popup-place { font-weight: 700; }
+.talk-popup-place-label { font-weight: 600; }
+.talk-map .leaflet-popup-content .talk-popup .talk-popup-note { font-size: 0.85rem; }
+.talk-popup-talks { display: grid; gap: 0.5rem; margin: 0.5rem 0 0; padding: 0; list-style: none; }
+.talk-popup-talks li { padding-top: 0.5rem; border-top: 1px solid $cool-steel; }
+.talk-popup-title { font-weight: 700; }
+.talk-map .leaflet-popup-content .talk-popup .talk-popup-meta { margin: 0.2rem 0 0; font-size: 0.875rem; }
+.talk-map .talk-spider-leg { stroke: $jet-black; stroke-opacity: 0.85; }
+
+// Markers and their map-key swatches (spec 8.1, 13.2): the primary pillar's
+// number on its tonal fill inside a Jet Black outline, with a white halo that
+// keeps the outline visible on any tile. In person: a circle. Virtual: a
+// square with a double outline and a "V" tag, as on the card's badge. Number
+// text is white on the two dark fills and Jet Black on the two light ones.
+// (.talk-map outranks Leaflet's .leaflet-marker-icon { display: block }.)
+.talk-map .talk-marker, .talk-map .talk-cluster {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  font-family: $font-family-sans-serif;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 2px $surface;
+}
+.talk-marker { font-size: 0.95rem; border: 2px solid $jet-black; border-radius: 50%; }
+.talk-marker-virtual { border: 5px double $jet-black; border-radius: 0; }
+.talk-marker-virtual-tag {
+  position: absolute;
+  top: -0.75rem;
+  right: -0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.15rem;
+  color: $jet-black;
+  background: $surface;
+  border: 2px solid $jet-black;
+  border-radius: 0.2rem;
+  font-size: 0.7rem;
+}
+.talk-marker-p0 { color: $jet-black; background: $surface; }
+.talk-marker-p1 { color: $surface; background: $jet-black; }
+.talk-marker-p2 { color: $surface; background: $blue-slate; }
+.talk-marker-p3 { color: $jet-black; background: $cool-steel; }
+.talk-marker-p4 { color: $jet-black; background: $light-blue; }
+// The marker of the talk selected from its card or on the map: a wider ring.
+.talk-marker.is-selected { box-shadow: 0 0 0 3px $surface, 0 0 0 6px $jet-black; }
+.talk-cluster { width: 38px; height: 38px; font-size: 1rem; color: $jet-black; background: $surface; border: 3px solid $jet-black; border-radius: 50%; }
+
+// "Show on map" on a card, and the card selected from the map (Light Cyan
+// tint plus a Jet Black bar, so it does not rely on colour).
+.talk-map-action { margin: 0.75rem 0 0; }
+.talk-map-button {
+  min-height: 2.25rem;
+  padding: 0.25rem 0.75rem;
+  color: $jet-black;
+  background: $surface;
+  border: 2px solid $jet-black;
+  border-radius: 0.375rem;
+  font-weight: 600;
+}
+.talk-map-button:hover { background: $light-cyan; }
+.talk-card.is-map-selected { background: $light-cyan; box-shadow: inset 0.375rem 0 0 $jet-black; }
+
+// No moving map (spec 13.5): the script turns Leaflet's animations off; this
+// covers any transition left in Leaflet's or markercluster's CSS.
+@media (prefers-reduced-motion: reduce) {
+  .talk-map *, .talk-map *::before, .talk-map *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
