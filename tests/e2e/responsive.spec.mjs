@@ -14,7 +14,9 @@ const WIDTHS = [320, 375, 768, 1280];
 // Pages in a state that shows more: every pillar panel in turn (with
 // JavaScript one is open at a time) and the archives filtered to the pillar
 // with the longest name, so that a select shows its longest option.
-const PILLAR = Object.keys(JSON.parse(readGenerated("pillars.json"))).sort((a, b) => b.length - a.length)[0];
+const pillars = JSON.parse(readGenerated("pillars.json"));
+const PILLAR = Object.keys(pillars).sort((a, b) => b.length - a.length)[0];
+const PILLAR_NUMBER = pillars[PILLAR].number;
 const ACCEPTED_CLIPPED = /^select#(publication|talk)-filter-pillar\./;
 
 for (const width of WIDTHS) {
@@ -35,13 +37,21 @@ for (const width of WIDTHS) {
             // The checks saw the page (not an empty or unrendered one).
             expect(problems.checked.elements, label).toBeGreaterThan(20);
             expect(problems.checked.targets, label).toBeGreaterThan(5);
-            // Accepted: below 48rem the closed pillar select cannot show the
-            // longest pillar names in full. It is a native select: the
-            // browser cuts the chosen option's text, and the open list and
-            // assistive technology give it in full. Nothing else may be cut.
-            const clipped = problems.clipped.filter((entry) => !(width < 768 && ACCEPTED_CLIPPED.test(entry)));
+            // Accepted for the first release (controller ruling R44): below
+            // 48rem the closed pillar select cannot show the longest pillar
+            // names in full. Only that native <select>, only closed and only
+            // below 768px: the browser cuts the chosen option's text, while
+            // its value (asserted below) and the native picker give it in
+            // full. Nothing else may be cut.
+            const accepted = problems.clipped.filter((entry) => width < 768 && ACCEPTED_CLIPPED.test(entry));
+            const clipped = problems.clipped.filter((entry) => !accepted.includes(entry));
             expect({ overflow: problems.overflow, wide: problems.wide, clipped, small: problems.small }, label)
               .toEqual({ overflow: 0, wide: [], clipped: [], small: [] });
+            for (const entry of accepted) {
+              const select = page.locator(`#${/^select#([\w-]+)/.exec(entry)[1]}`);
+              await expect(select, label).toHaveValue(PILLAR);
+              expect(await select.evaluate((node) => node.selectedOptions[0].textContent), label).toBe(`Pillar ${PILLAR_NUMBER}: ${PILLAR}`);
+            }
           }
         }
       });

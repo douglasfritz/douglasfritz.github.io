@@ -53,6 +53,16 @@ export const AXE_EXCLUSIONS = [
     rule: "region",
     selector: ".aa-DetachedOverlay, .aa-DetachedOverlay *",
     why: "Quarto search dialog: the overlay is appended to <body>, outside the landmarks"
+  },
+  {
+    // The talk map's markers (30px; clusters 38px; their size is checked in
+    // talks-map.spec.mjs) can be partly covered by an open popup or sit
+    // close to a neighbour, depending on where the talks are. WCAG 2.5.8's
+    // "Equivalent" exception applies: every marker's talk has its card in
+    // the list below, with a "Show on map" button of 24px or more.
+    rule: "target-size",
+    selector: "#talk-map-canvas .leaflet-marker-icon",
+    why: "Talk map markers: WCAG 2.5.8 Equivalent exception (each talk's card and Show on map button)"
   }
 ];
 

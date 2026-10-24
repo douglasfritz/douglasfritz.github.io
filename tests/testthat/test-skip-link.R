@@ -1,44 +1,62 @@
 # The post-render step that puts the skip link first in every page
-# (R/skip_link.R, scripts/post-render.R).
+# (R/skip_link.R, scripts/post-render.R, includes/skip-link.html).
 
 repo_root <- function(...) testthat::test_path("..", "..", ...)
 skip_link <- '<a class="skip-link visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>'
-# A page as Quarto renders it: the included link at the top of <main>.
-page_html <- function(link = skip_link, title = "Talks & Reach") {
+# A page as Quarto renders it (`in_main` is markup at the top of <main>;
+# `head` is extra markup in <head>).
+page_html <- function(in_main = "", title = "Talks & Reach", head = "") {
   paste0(
-    "<!DOCTYPE html>\n<html lang=\"en\"><head><title>", title, "</title></head>\n",
+    "<!DOCTYPE html>\n<html lang=\"en\"><head><title>", title, "</title>", head, "</head>\n",
     "<body class=\"nav-fixed fullcontent\">\n\n<div id=\"quarto-search-results\"></div>\n",
     "<header id=\"quarto-header\"><nav class=\"navbar\"><a class=\"navbar-brand\" href=\"./index.html\">Home</a></nav></header>\n",
-    "<main class=\"content\" id=\"quarto-document-content\">\n", link, "\n<script type=\"module\" src=\"./js/site.js\"></script>\n",
+    "<main class=\"content\" id=\"quarto-document-content\">\n", in_main, "<script type=\"module\" src=\"./js/site.js\"></script>\n",
     "<h1>", title, "</h1>\n</main>\n</body></html>\n"
   )
 }
+count_links <- function(html) sum(gregexpr("skip-link", html, fixed = TRUE)[[1]] > 0)
 
-test_that("the skip link moves from <main> to just after <body>", {
-  moved <- move_skip_link(page_html())
-  expect_match(moved, paste0('<body class="nav-fixed fullcontent">\n', skip_link, "\n\n<div id=\"quarto-search-results\">"), fixed = TRUE)
-  # Once, before the navbar; the rest of <main> is unchanged.
-  expect_length(gregexpr("skip-link", moved, fixed = TRUE)[[1]], 1)
-  expect_lt(regexpr("skip-link", moved, fixed = TRUE), regexpr("navbar-brand", moved, fixed = TRUE))
-  expect_match(moved, '<main class="content" id="quarto-document-content">\n<script type="module" src="./js/site.js"></script>', fixed = TRUE)
-  # Nothing else changes: only the link's line moved.
-  expect_identical(nchar(moved, type = "bytes"), nchar(page_html(), type = "bytes"))
+test_that("the skip link is inserted once, just after <body>, before the navbar", {
+  inserted <- insert_skip_link(page_html(), skip_link)
+  expect_match(inserted, paste0('<body class="nav-fixed fullcontent">\n', skip_link, "\n\n<div id=\"quarto-search-results\">"), fixed = TRUE)
+  expect_identical(count_links(inserted), 1L)
+  expect_lt(regexpr("skip-link", inserted, fixed = TRUE), regexpr("navbar-brand", inserted, fixed = TRUE))
+  # Nothing else changes.
+  expect_identical(sub(paste0("\n", skip_link), "", inserted, fixed = TRUE), page_html())
 })
 
-test_that("moving is idempotent and keeps UTF-8 text byte for byte", {
+test_that("inserting is idempotent, and a skip link already elsewhere is moved, not doubled", {
+  once <- insert_skip_link(page_html(), skip_link)
+  expect_identical(insert_skip_link(once, skip_link), once)
+  # A link left inside <main> (where include-before-body would put it).
+  from_main <- insert_skip_link(page_html(in_main = paste0(skip_link, "\n")), skip_link)
+  expect_identical(from_main, once)
+  expect_identical(count_links(from_main), 1L)
+})
+
+test_that("the <body> tag is looked for only after </head>", {
+  # A head script that mentions "<body": the link must not go into <head>.
+  head <- "<script>const shell = '<body class=\"x\">';</script>"
+  inserted <- insert_skip_link(page_html(head = head), skip_link)
+  expect_match(inserted, paste0(head, "</head>"), fixed = TRUE)
+  expect_match(inserted, paste0('<body class="nav-fixed fullcontent">\n', skip_link), fixed = TRUE)
+  expect_gt(regexpr(skip_link, inserted, fixed = TRUE), regexpr("</head>", inserted, fixed = TRUE))
+  expect_identical(count_links(inserted), 1L)
+})
+
+test_that("UTF-8 text is kept byte for byte", {
   title <- "Talks – café · “reach”"
   html <- enc2utf8(page_html(title = title))
-  once <- move_skip_link(html)
-  expect_identical(move_skip_link(once), once)
-  expect_identical(Encoding(once), "UTF-8")
-  expect_match(once, paste0("<h1>", title, "</h1>"), fixed = TRUE)
-  expect_identical(sort(as.integer(charToRaw(once))), sort(as.integer(charToRaw(html))))
+  inserted <- insert_skip_link(html, skip_link)
+  expect_identical(Encoding(inserted), "UTF-8")
+  expect_match(inserted, paste0("<h1>", title, "</h1>"), fixed = TRUE)
+  expect_identical(charToRaw(sub(paste0("\n", skip_link), "", inserted, fixed = TRUE)), charToRaw(html))
 })
 
-test_that("a page without exactly one skip link, or without <body>, is an error", {
-  expect_error(move_skip_link(page_html(link = "")), "found 0")
-  expect_error(move_skip_link(page_html(link = paste(skip_link, skip_link))), "found 2")
-  expect_error(move_skip_link(sub("<body[^>]*>", "", page_html())), "no <body> tag")
+test_that("a page without </head> or without <body> after it, or a link that is not a skip link, is an error", {
+  expect_error(insert_skip_link(sub("</head>", "", page_html(), fixed = TRUE), skip_link), "no </head> tag")
+  expect_error(insert_skip_link(sub("<body[^>]*>", "", page_html()), skip_link), "no <body> tag after </head>")
+  expect_error(insert_skip_link(page_html(), '<a href="#main">Skip</a>'), "not a skip link")
 })
 
 test_that("files are rewritten in place, and errors name the file", {
@@ -46,18 +64,31 @@ test_that("files are rewritten in place, and errors name the file", {
   path <- file.path(dir, "index.html")
   html <- enc2utf8(page_html(title = "Café"))
   writeBin(charToRaw(html), path)
-  move_skip_link_file(path)
-  expect_identical(rawToChar(readBin(path, "raw", file.size(path))), as.character(move_skip_link(html)))
+  insert_skip_link_file(path, skip_link)
+  expect_identical(readBin(path, "raw", file.size(path)), charToRaw(insert_skip_link(html, skip_link)))
   broken <- file.path(dir, "broken.html")
-  writeBin(charToRaw(page_html(link = "")), broken)
-  expect_error(move_skip_link_file(broken), "broken.html: expected one skip link")
+  writeBin(charToRaw("<html><body></body></html>"), broken)
+  expect_error(insert_skip_link_file(broken, skip_link), "broken.html: the page has no </head> tag")
 })
 
-test_that("the include, the post-render step and the site config agree", {
-  include <- paste(readLines(repo_root("includes", "skip-link.html"), warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-  expect_match(include, skip_link, fixed = TRUE)
-  expect_match(include, skip_link_pattern, perl = TRUE)
+test_that("the link's markup file holds exactly one skip link", {
+  expect_identical(read_skip_link(repo_root("includes", "skip-link.html")), skip_link)
+  dir <- withr::local_tempdir()
+  for (text in c("", "<a href=\"#x\">Skip</a>", paste(skip_link, skip_link, sep = "\n"))) {
+    path <- file.path(dir, "link.html")
+    writeLines(text, path)
+    expect_error(read_skip_link(path), "must hold one skip link")
+  }
+})
+
+test_that("the site config adds the link after rendering, never through Quarto's includes", {
   quarto <- read_yaml_utf8(repo_root("_quarto.yml"))
   expect_identical(quarto$project$`post-render`, "scripts/post-render.R")
-  expect_identical(quarto$format$html$`include-before-body`, "includes/skip-link.html")
+  includes <- unlist(quarto$format$html[c("include-before-body", "include-after-body", "include-in-header")])
+  expect_false("includes/skip-link.html" %in% includes)
+  expect_identical(quarto$format$html$`include-before-body`, "includes/site-script.html")
+  site_script <- paste(readLines(repo_root("includes", "site-script.html"), warn = FALSE), collapse = "\n")
+  expect_false(grepl("skip-link", site_script, fixed = TRUE))
+  post_render <- paste(readLines(repo_root("scripts", "post-render.R"), warn = FALSE), collapse = "\n")
+  expect_match(post_render, "insert_skip_link_file", fixed = TRUE)
 })

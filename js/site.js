@@ -1,6 +1,6 @@
 // Site-wide fixes to the markup and widgets Quarto generates, on every page
-// (loaded by includes/skip-link.html). Each is an enhancement: the page works
-// without it.
+// (loaded by includes/site-script.html). Each is an enhancement: the page
+// works without it.
 //
 // - The skip link's target, Quarto's <main id="quarto-document-content">,
 //   becomes focusable (tabindex="-1"), so that following the link moves

@@ -30,7 +30,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   }
 }
 
-// Skip link (spec 14): the first focusable element on every page (moved
+// Skip link (spec 14): the first focusable element on every page (inserted
 // before the navbar by scripts/post-render.R). Bootstrap's
 // .visually-hidden-focusable hides it until it has focus; then it shows above
 // the fixed navbar, with the site's focus ring.

@@ -334,9 +334,17 @@ never retried.
 Site-wide checks: `accessibility.spec.mjs` (axe-core on every page and in interactive states, the
 skip link, landmarks, the keyboard order and focus ring of every focusable element, link names,
 link and request targets, forced colours, reduced motion and the pages without JavaScript),
-`responsive.spec.mjs` (320 to 1280 px: no sideways scrolling, nothing cut off, 24 px targets) and
-`failure-states.spec.mjs` (empty results and every map, data and script failure).
+`responsive.spec.mjs` (320 to 1280 px: no sideways scrolling, no control text cut off apart from
+the known limitation below, 24 px targets) and `failure-states.spec.mjs` (empty results and every
+map, data and script failure).
 
-The skip link (`includes/skip-link.html`) is the first element on every page. Quarto places
-included markup inside `<main>`, so the project's post-render step, `scripts/post-render.R`, moves
-it to the start of `<body>` after every render.
+Known limitation: on screens narrower than 48rem (768 px) the archives' closed "Research pillar"
+select cannot show a long pillar name in full, so the browser truncates the chosen option's text.
+The full name is the control's value, read out by assistive technology, and appears in full in the
+browser's own option list when the select is opened. The test allows this one case and nothing else.
+
+The skip link (`includes/skip-link.html`) is the first element on every page. Quarto would place
+included markup inside `<main>`, and its search index would pick up the link's text, so the link is
+not given to Quarto: the project's post-render step, `scripts/post-render.R`, inserts it at the
+start of `<body>` after every render, once the search index is written. `js/site.js` (included with
+`includes/site-script.html`) makes its target focusable.

@@ -151,20 +151,40 @@ test.describe("skip link", () => {
       const main = page.locator("main#quarto-document-content");
       // With JavaScript the main content takes focus; without it the browser
       // starts the next Tab there. Either way the next Tab lands on the first
-      // focusable element inside it, never back in the navbar.
+      // focusable element from the start of the main content (inside it, or
+      // after it when it has none, as a page of records without links may
+      // have without JavaScript), never back in the navbar.
       if (enhanced) await expect(main).toBeFocused();
       await expect(page.locator("main h1")).toBeInViewport();
-      const firstInMain = await page.evaluate(() => {
-        const candidates = document.querySelectorAll("main a[href], main button, main input, main select, main [tabindex='0']");
-        const first = [...candidates].find((element) => element.checkVisibility({ visibilityProperty: true }));
-        first?.setAttribute("data-first-in-main", "");
-        return Boolean(first);
+      const next = await page.evaluate(() => {
+        const start = document.getElementById("quarto-document-content");
+        const candidates = document.querySelectorAll("a[href], button, input, select, textarea, [tabindex='0']");
+        const first = [...candidates].find((element) => (start.contains(element) || (start.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING))
+          && element.tabIndex >= 0 && element.checkVisibility({ visibilityProperty: true }));
+        first?.setAttribute("data-next-after-skip", "");
+        return first ? { inMain: start.contains(first), inNavbar: Boolean(first.closest("#quarto-header")) } : null;
       });
-      expect(firstInMain, "the main content has a focusable element").toBe(true);
+      expect(next, "a focusable element follows the start of the main content").not.toBeNull();
+      expect(next.inNavbar).toBe(false);
       await page.keyboard.press("Tab");
-      await expect(page.locator("[data-first-in-main]")).toBeFocused();
+      await expect(page.locator("[data-next-after-skip]")).toBeFocused();
     });
   }
+
+  // The link is added after Quarto has written its search index, so a search
+  // never finds it: no entry's title, section or text has the link's words.
+  test("the site search index never contains the skip link's text", async ({ page }) => {
+    const response = await page.request.get("/search.json");
+    expect(response.status()).toBe(200);
+    const entries = await response.json();
+    // Every page is indexed (one entry per page or per section).
+    for (const route of ROUTES) {
+      const href = `${route.slice(1)}index.html`;
+      expect(entries.some((entry) => entry.href === href || entry.href.startsWith(`${href}#`)), href).toBe(true);
+    }
+    const leaks = entries.filter((entry) => [entry.title, entry.section, entry.text].some((value) => /skip to main content/i.test(String(value ?? ""))));
+    expect(leaks.map((entry) => entry.href)).toEqual([]);
+  });
 
   test("the skip link is hidden until it has focus", async ({ page }) => {
     await page.goto("/about/");
@@ -204,6 +224,10 @@ test("every page has one main, banner and contentinfo landmark, and every naviga
 // ---- Keyboard order and focus visibility ---------------------------------------
 
 test.describe("keyboard", { tag: "@js" }, () => {
+  // A crawl visits every focusable element, so its length follows the data
+  // (the live Talks page has some seventy at 375px: about 10s alone, more
+  // under a full parallel run).
+  test.describe.configure({ timeout: 120_000 });
   for (const viewport of [{ width: 1280, height: 900 }, { width: 375, height: 812 }]) {
     for (const route of ROUTES) {
       test(`${route} at ${viewport.width}px: Tab visits every focusable element in order, each with a visible focus ring, and leaves the page`, async ({ page }) => {

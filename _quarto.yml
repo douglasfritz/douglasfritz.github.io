@@ -5,8 +5,9 @@ project:
   # Quarto would otherwise render as pages of their own.
   render:
     - "*.qmd"
-  # Moves the skip link (includes/skip-link.html) to the start of <body> on
-  # every rendered page: Quarto places included markup inside <main>.
+  # Inserts the skip link (includes/skip-link.html) at the start of <body>
+  # on every rendered page, after the search index is written: Quarto would
+  # place included markup inside <main>, and index its text.
   post-render: scripts/post-render.R
   # Browser modules, loaded by the archive pages; the talk map's self-hosted
   # libraries (npm run vendor:map) and its data. Of the generated data files
@@ -79,9 +80,10 @@ format:
     # No "#" links beside headings: Quarto names every one "Anchor", so a
     # page would have several links with one name and different targets.
     anchor-sections: false
-    # The skip link (moved before the navbar by scripts/post-render.R) and
-    # the site-wide script (js/site.js) that makes its target focusable.
-    include-before-body: includes/skip-link.html
+    # The site-wide script (js/site.js): it makes the skip link's target
+    # focusable, among other fixes. (The skip link itself is added by
+    # scripts/post-render.R.)
+    include-before-body: includes/site-script.html
 
 execute:
   freeze: false

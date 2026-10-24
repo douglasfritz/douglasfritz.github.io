@@ -522,7 +522,11 @@ test("virtual markers differ in shape and carry a V; numbers and fills follow th
   for (const feature of features) {
     const { key, primary_pillar: pillar } = feature.properties;
     await showButton(page, key).click();
+    // Wait for the reveal (a zoom or a spread) to open the popup before
+    // closing it: Escape before then closes nothing.
+    await expect(popup(page)).toBeVisible();
     await page.keyboard.press("Escape");
+    await expect(popup(page)).toHaveCount(0);
     const icon = markerIcon(page, key);
     const number = pillars[pillar].number;
     await expect(icon.locator(".talk-marker-number")).toHaveText(String(number));
