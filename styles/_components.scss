@@ -219,8 +219,9 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
 @media (min-width: 48rem) {
   .talk-map-canvas { height: 28rem; }
 }
-// Clear the fixed navbar when the map or a card is scrolled into view.
-.talk-map-canvas, .talk-card, .archive-heading { scroll-margin-top: 5rem; }
+// Clear the fixed navbar when the map or a card is scrolled into view (cards
+// are also the targets of the pillar component's selected-output links).
+.talk-map-canvas, .talk-card, .publication-card, .archive-heading { scroll-margin-top: 5rem; }
 .talk-map-coverage { margin: 0.5rem 0 0; font-size: 0.9rem; }
 .talk-map-legend h3 { margin: 1rem 0 0.25rem; padding: 0; border: 0; font-size: 1.1rem; }
 .talk-map-key-note { margin: 0 0 0.5rem; font-size: 0.9rem; }
@@ -336,6 +337,145 @@ p.talk-host { margin-bottom: 0.2rem; font-weight: 600; }
 // covers any transition left in Leaflet's or markercluster's CSS.
 @media (prefers-reduced-motion: reduce) {
   .talk-map *, .talk-map *::before, .talk-map *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+// Research pillars (spec 7, 13.2, 13.5, 14; markup from R/pillar_cards.R).
+// The umbrella identity, then four pillar cards in DOM order 1-4.
+// Without JavaScript: stacked cards, every panel shown. With js/pillars.js
+// (.js-enhanced): one panel open at a time and, from 62rem, the four cards
+// surround the umbrella (CSS grid only; the DOM order never changes).
+// Panels are white with Jet Black text and Blue Slate links (5.5:1); the
+// pillar fills are supplementary to the number and name, with white text on
+// the two dark fills and Jet Black text on the two light ones.
+.pillar-component {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  margin-block: 1.5rem 2rem;
+}
+.pillar-hub {
+  min-width: 0;
+  padding: 1.25rem 1.5rem;
+  color: $jet-black;
+  background: $surface;
+  border: 2px solid $jet-black;
+  border-radius: 0.75rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.pillar-hub-kicker { margin: 0 0 0.25rem; font-size: 0.875rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.pillar-umbrella { margin: 0 0 0.5rem; padding: 0; border: 0; font-size: 1.5rem; line-height: 1.3; }
+.pillar-hub-text { margin: 0; }
+// The selection hint only applies once the script has made the buttons work.
+.pillar-hint { display: none; margin: 0.5rem 0 0; font-weight: 600; }
+.js-enhanced .pillar-hint { display: block; }
+
+.pillar-card {
+  min-width: 0;
+  color: $jet-black;
+  background: $surface;
+  border: 2px solid $cool-steel;
+  border-radius: 0.5rem;
+  overflow-wrap: anywhere;
+}
+.pillar-heading { margin: 0; padding: 0; border: 0; font-size: 1.15rem; line-height: 1.3; }
+.pillar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.75rem 1rem;
+  font: inherit;
+  font-weight: 700;
+  text-align: start;
+  border: 0;
+  border-radius: 0.375rem 0.375rem 0 0;
+}
+.pillar-card-1 .pillar-toggle { color: $surface; background: $jet-black; }
+.pillar-card-2 .pillar-toggle { color: $surface; background: $blue-slate; }
+.pillar-card-3 .pillar-toggle { color: $jet-black; background: $cool-steel; }
+.pillar-card-4 .pillar-toggle { color: $jet-black; background: $light-blue; }
+// The number: Jet Black on white in a Jet Black outline, on every fill.
+.pillar-toggle .pillar-badge { flex: none; min-width: 2rem; height: 2rem; color: $jet-black; background: $surface; }
+.pillar-toggle-name { min-width: 0; }
+// Open/closed sign (+ or minus): only once the buttons work.
+.pillar-toggle-state { display: none; }
+.js-enhanced .pillar-toggle { cursor: pointer; }
+.js-enhanced .pillar-toggle[aria-expanded="false"] { border-radius: 0.375rem; }
+.js-enhanced .pillar-toggle-state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-inline-start: auto;
+  color: $jet-black;
+  background: $surface;
+  border: 2px solid $jet-black;
+  border-radius: 50%;
+  line-height: 1;
+}
+.js-enhanced .pillar-toggle[aria-expanded="false"] .pillar-toggle-state::before { content: "+"; }
+.js-enhanced .pillar-toggle[aria-expanded="true"] .pillar-toggle-state::before { content: "\2212"; }
+// Hover and keyboard focus only emphasise a pillar (WCAG 1.4.13): nothing
+// is revealed until it is selected. The focus ring is the site's own, set
+// outside the card's border so that a gap separates it from the dark fills.
+.pillar-toggle:focus-visible { outline-offset: 6px; }
+.js-enhanced .pillar-toggle:hover .pillar-toggle-name { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.2em; }
+.js-enhanced .pillar-toggle:hover .pillar-toggle-state { background: $light-cyan; }
+.js-enhanced .pillar-card:has(.pillar-toggle:hover),
+.js-enhanced .pillar-card:has(.pillar-toggle:focus-visible),
+.js-enhanced .pillar-card.is-selected {
+  border-color: $jet-black;
+  box-shadow: 0 0.25rem 0 $jet-black;
+}
+// Brief transitions, only when the script found no reduced-motion preference.
+.pillars-motion .pillar-card { transition: border-color 150ms ease-out, box-shadow 150ms ease-out; }
+.pillars-motion .pillar-toggle-state { transition: background-color 150ms ease-out; }
+
+.pillar-panel { padding: 1rem 1.25rem 1.25rem; }
+// [hidden] must win over any display rule (js/pillars.js hides closed panels).
+.pillar-panel[hidden] { display: none; }
+.pillar-panel > :last-child { margin-bottom: 0; }
+.pillar-label { font-weight: 700; }
+.pillar-role, .pillar-includes { margin-bottom: 0.5rem; }
+.pillar-facts { display: grid; gap: 0.5rem; margin: 0.75rem 0; }
+.pillar-fact { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; }
+.pillar-fact dt { font-weight: 700; }
+.pillar-fact dt::after { content: ":"; }
+.pillar-fact dd { margin: 0; }
+.pillar-archive-link { display: inline-block; padding-block: 0.25rem; font-weight: 600; }
+.pillar-note { font-size: 0.9rem; }
+.pillar-subheading { margin: 1rem 0 0.35rem; padding: 0; border: 0; font-size: 1.05rem; font-weight: 700; }
+.pillar-outputs { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.pillar-output { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.6rem; }
+.pillar-output a { font-weight: 600; }
+.pillar-output-year { font-size: 0.9rem; }
+.pillar-output-secondary { padding: 0 0.4rem; font-size: 0.85rem; border: 1px dashed $jet-black; border-radius: 0.25rem; }
+.pillar-none { margin: 0; font-style: italic; }
+
+@media (min-width: 62rem) {
+  .pillar-component.js-enhanced {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas: "p1 p2" "hub hub" "p3 p4";
+    align-items: start;
+    gap: 1.25rem 1.5rem;
+  }
+  .js-enhanced .pillar-hub { grid-area: hub; justify-self: center; width: min(100%, 36rem); }
+  .js-enhanced .pillar-card-1 { grid-area: p1; }
+  .js-enhanced .pillar-card-2 { grid-area: p2; }
+  .js-enhanced .pillar-card-3 { grid-area: p3; }
+  .js-enhanced .pillar-card-4 { grid-area: p4; }
+}
+
+// Reduced motion: no transitions, even if the motion class were present.
+@media (prefers-reduced-motion: reduce) {
+  .pillar-component *, .pillar-component *::before, .pillar-component *::after {
     transition: none !important;
     animation: none !important;
   }

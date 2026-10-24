@@ -274,13 +274,21 @@ test_that("pillar summaries are keyed by exactly the four configured pillars", {
   expect_identical(names(built$pillars), site_config$pillars)
   expect_length(built$pillars, 4)
   expect_identical(unname(vapply(built$pillars, function(p) p$number, integer(1))), 1:4)
+  kind_fields <- c("primary", "any", "keys", "representative", "representative_secondary")
   for (pillar in built$pillars) {
-    expect_named(pillar, c("number", "publications", "talks"))
-    expect_named(pillar$publications, c("primary", "any", "keys", "representative"))
-    expect_named(pillar$talks, c("primary", "any", "keys", "representative"))
+    expect_named(pillar, c("number", "publications", "talks", "topic_tags"))
+    expect_named(pillar$publications, kind_fields)
+    expect_named(pillar$talks, kind_fields)
   }
   json <- jsonlite::parse_json(serialize_public_data(built)[["pillars.json"]])
   expect_identical(names(json), site_config$pillars)
+  expect_false("Translational physician-scientist for public health" %in% names(json))
+})
+
+test_that("pillar summary has exactly four controlled pillars", {
+  built <- build_public_data(publication_fixture(), talk_fixture())
+  expect_setequal(names(built$pillars), site_config$pillars)
+  expect_false("Translational physician-scientist for public health" %in% names(built$pillars))
 })
 
 test_that("pillar counts and keys come from the exported archive records", {
@@ -311,13 +319,24 @@ test_that("pillar counts and keys come from the exported archive records", {
   expect_identical(as_keys(pillars[[4]]$talks$keys), c("talk-7", "talk-4"))
 })
 
-test_that("representative records are primary-pillar records, featured first, then newest, at most three", {
+test_that("representative records: primary pillar first (featured, then newest), then secondary, at most three", {
   built <- build_fixture_data()
   pillars <- unname(built$pillars)
-  expect_identical(as_keys(pillars[[1]]$publications$representative), "pub-1")
-  expect_identical(as_keys(pillars[[2]]$publications$representative), character()) # pub-1 is only secondary
-  expect_identical(as_keys(pillars[[3]]$talks$representative), "talk-3")
+  representative <- function(pillar, kind) as_keys(pillar[[kind]]$representative)
+  secondary_count <- function(pillar, kind) pillar[[kind]]$representative_secondary
 
+  # pub-1 has pillar 1 as primary, pub-5 has it as secondary.
+  expect_identical(representative(pillars[[1]], "publications"), c("pub-1", "pub-5"))
+  expect_identical(secondary_count(pillars[[1]], "publications"), 1L)
+  # Pillar 2 is only pub-1's secondary pillar: it still gets a representative.
+  expect_identical(representative(pillars[[2]], "publications"), "pub-1")
+  expect_identical(secondary_count(pillars[[2]], "publications"), 1L)
+  expect_identical(representative(pillars[[3]], "talks"), c("talk-3", "talk-2"))
+  expect_identical(secondary_count(pillars[[3]], "talks"), 1L)
+  expect_identical(representative(pillars[[4]], "talks"), c("talk-7", "talk-4"))
+  expect_identical(secondary_count(pillars[[4]], "talks"), 0L)
+
+  # Featured first among primary records, then archive order, capped at three.
   talks <- talk_fixture()
   public <- talks$website_include %in% "Y"
   talks$primary_pillar[public] <- site_config$pillars[[1]]
@@ -327,6 +346,76 @@ test_that("representative records are primary-pillar records, featured first, th
   summary <- build_fixture_data(talks = talks)$pillars[[1]]$talks
   expect_identical(summary$primary, 5L)
   expect_identical(as_keys(summary$representative), c("talk-3", "talk-1", "talk-2"))
+  expect_identical(summary$representative_secondary, 0L)
+
+  # Secondary records only fill the places primary records leave, in archive
+  # order: a featured, newer secondary record never displaces a primary one.
+  talks <- talk_fixture()
+  talks$primary_pillar[public] <- site_config$pillars[[2]]
+  talks$secondary_pillar[public] <- NA
+  talks$primary_pillar[talks$key == "talk-4"] <- site_config$pillars[[1]]
+  talks$secondary_pillar[talks$key %in% c("talk-1", "talk-2", "talk-7")] <- site_config$pillars[[1]]
+  talks$featured[public] <- "N"
+  talks$featured[talks$key == "talk-1"] <- "Y"
+  summary <- build_fixture_data(talks = talks)$pillars[[1]]$talks
+  expect_identical(summary$primary, 1L)
+  expect_identical(summary$any, 4L)
+  expect_identical(as_keys(summary$representative), c("talk-4", "talk-1", "talk-2"))
+  expect_identical(summary$representative_secondary, 2L)
+
+  # No assigned records: an empty array and a zero count.
+  pubs <- publication_fixture()
+  pubs$secondary_pillar <- NA
+  summary <- build_fixture_data(pubs)$pillars[[2]]$publications
+  expect_identical(summary$any, 0L)
+  expect_identical(summary$representative, list())
+  expect_identical(summary$representative_secondary, 0L)
+  json <- jsonlite::parse_json(serialize_public_data(build_fixture_data(pubs))[["pillars.json"]])
+  expect_identical(json[[2]]$publications$representative, list())
+  expect_match(serialize_public_data(build_fixture_data(pubs))[["pillars.json"]], '"representative": []', fixed = TRUE)
+})
+
+test_that("pillar topic tags are the most frequent tags of the pillar's records, ties alphabetical", {
+  built <- build_fixture_data()
+  tags <- function(i) as_keys(built$pillars[[i]]$topic_tags)
+  # Pillar 1: pub-1 (alpha, beta), pub-5 (alpha, epsilon; secondary), talk-1 (alpha).
+  expect_identical(tags(1), c("tag-alpha", "tag-beta", "tag-epsilon"))
+  # Pillar 2: pub-1 (alpha, beta; secondary), talk-2 (beta, gamma).
+  expect_identical(tags(2), c("tag-beta", "tag-alpha", "tag-gamma"))
+  # Pillar 3: pub-2 (gamma), talk-2 (beta, gamma; secondary), talk-3 (none).
+  expect_identical(tags(3), c("tag-gamma", "tag-beta"))
+  # Pillar 4: pub-5 (alpha, epsilon), talk-4 (delta), talk-7 (epsilon).
+  expect_identical(tags(4), c("tag-epsilon", "tag-alpha", "tag-delta"))
+
+  # Records count once per tag; ties sort case-insensitively; at most eight.
+  pubs <- publication_fixture()
+  talks <- talk_fixture()
+  pub_public <- pubs$website_include %in% "Y"
+  talk_public <- talks$website_include %in% "Y"
+  pubs$primary_pillar[pub_public] <- site_config$pillars[[1]]
+  pubs$secondary_pillar[pub_public] <- NA
+  talks$primary_pillar[talk_public] <- site_config$pillars[[2]]
+  talks$secondary_pillar[talk_public] <- NA
+  pubs$topic_tags[pubs$key == "pub-1"] <- "zeta; Beta; alpha; delta; Gamma; epsilon; eta; theta; iota"
+  pubs$topic_tags[pubs$key == "pub-2"] <- "zeta; kappa"
+  pubs$topic_tags[pubs$key == "pub-5"] <- "zeta; kappa"
+  talks$topic_tags[talks$key == "talk-1"] <- "zeta" # pillar 2: does not count for pillar 1
+  talks$secondary_pillar[talks$key == "talk-1"] <- site_config$pillars[[3]]
+  built <- build_fixture_data(pubs, talks)
+  expect_identical(
+    as_keys(built$pillars[[1]]$topic_tags),
+    c("zeta", "kappa", "alpha", "Beta", "delta", "epsilon", "eta", "Gamma")
+  )
+  expect_identical(as_keys(built$pillars[[3]]$topic_tags), "zeta")
+
+  # A pillar whose records have no tags gets an empty array, never null.
+  expect_identical(built$pillars[[4]]$topic_tags, list())
+  json_text <- serialize_public_data(built)[["pillars.json"]]
+  json <- jsonlite::parse_json(json_text)
+  expect_identical(json[[4]]$topic_tags, list())
+  expect_identical(json[[3]]$topic_tags, list("zeta"))
+  expect_match(json_text, '"topic_tags": []', fixed = TRUE)
+  expect_match(json_text, '"topic_tags": \\[\\s*"zeta"\\s*\\]')
 })
 
 test_that("build metadata records counts and tab names but no source location", {

@@ -1,5 +1,18 @@
 ---
 title: "Research"
+description: "The umbrella identity and the four research pillars that organize Douglas Fritz's work, each with its role, topics, public publications and talks, and links to the filtered archives."
+# The pillar component is rendered by R at build time (../_pillars.qmd);
+# js/pillars.js turns it into one-pillar-at-a-time selection.
+include-in-header:
+  text: <script type="module" src="../js/pillars.js"></script>
 ---
 
-This page will explain the four pillars that organize Douglas Fritz's research.
+Douglas Fritz's work sits under one umbrella identity: **translational physician-scientist for public health**. It is not a research area of its own. It describes how four research pillars relate: scientific questions, the methods used to answer them, their application to patients and health systems, and the perspective of climate and planetary health.
+
+Each pillar below has its role, the questions it includes, topic tags from its publications and talks, up to three selected outputs, and links to the publication and talk archives filtered to that pillar. The counts come from the same public records that the archives list.
+
+{{< include ../_pillars.qmd >}}
+
+## How the pillars connect
+
+The pillars are aids for navigation and interpretation, not mutually exclusive academic departments. Every publication and talk has one primary pillar and may have a secondary one, so the same work can be reached from two pillars; selected outputs that come from a secondary pillar are marked "also tagged". Read together, Pillar 1 holds the core scientific questions, Pillar 2 the methods and discovery practice used to answer them, Pillar 3 their application to patients and health systems, and Pillar 4 the perspective, values and applied field of climate and planetary health in medicine.

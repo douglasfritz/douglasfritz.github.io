@@ -8,7 +8,9 @@ infectious-disease biology, quantitative discovery, clinical translation, and pl
 
 - [Quarto](https://quarto.org/docs/get-started/) on your `PATH`. RStudio and Positron each bundle a copy of Quarto; if
   `quarto` is not found in your shell, add the bundled `bin` directory to `PATH`.
-- R (4.4 or later), to run the tests and the data script. R packages are pinned with
+- R (4.4 or later), to run the tests and the data script, and for `quarto render` itself: the Home
+  and Research pages run a small R chunk at build time (see "Research pillars" below), so Quarto
+  must find `Rscript` (on `PATH`, or set `QUARTO_R`). R packages are pinned with
   [renv](https://rstudio.github.io/renv/) in `renv.lock`; R activates the project library
   automatically when started from the repository root. On a new machine, install the pinned
   packages once with `Rscript -e 'renv::restore()'`. To add a package, list it in `DESCRIPTION`,
@@ -49,7 +51,7 @@ Both write five files into `data/generated/`:
 | `publications.yml` | Public publications, newest first, for the publication listing |
 | `talks.yml` | Public talks, newest first, for the talk listing |
 | `talks.geojson` | A GeoJSON FeatureCollection of the talks that have coordinates (virtual talks sit at their host) |
-| `pillars.json` | Per research pillar: publication and talk counts, record keys, and representative records |
+| `pillars.json` | Per research pillar: publication and talk counts, record keys, representative records and topic tags |
 | `build-metadata.json` | Build time, schema version, source tab names, and source and public row counts |
 
 All five files are prepared before any is written, then replace the previous build together. A
@@ -133,6 +135,60 @@ extra view of the list, never the only way to reach a talk:
   `#talk-map-canvas[data-marker-keys]` holds the keys of the markers in the cluster group as a
   sorted JSON array, updated on every sync. The browser tests compare it with the visible cards.
 
+## Research pillars
+
+The Research page and the Home page show the research-pillar component: the umbrella identity,
+"Translational physician-scientist for public health", as text (never a fifth pillar, button or
+filter value), and the four numbered pillars of `R/config.R` (`site_config$pillars`), each with its
+role, the questions it includes, topic tags, public publication and talk counts, up to three
+selected outputs and links to the archives filtered to that pillar.
+
+- **Built by R at build time.** `_pillars.qmd` holds one R chunk that calls
+  `pillar_component_block()` in `R/pillar_cards.R`; both pages include it with Quarto's `include`
+  shortcode. The chunk reads `data/generated/pillars.json`, `publications.yml` and `talks.yml` and
+  `data/pillar-copy.yml`, and writes static HTML, so everything is in the page without JavaScript.
+  Every value from the data is HTML-escaped (htmltools), and braces and backticks are escaped too,
+  because Quarto expands `{{< … >}}` shortcodes even inside raw HTML. Build the data first
+  (`npm run data:fixture` or the live build); the render stops with a clear message if it is missing.
+- **Copy.** `data/pillar-copy.yml` holds each pillar's `role` and `includes` text, keyed by the exact
+  pillar names in canonical order (`tests/testthat/test-pillar-cards.R` checks the keys). The
+  current wording is a draft taken from the design specification, to be approved before launch.
+- **Counts and links.** Each pillar shows, per kind, how many records have it as their *primary*
+  pillar, and links to `/publications/?pillar=<name>&foundational=include` and
+  `/talks/?pillar=<name>&foundational=include` (the name URL-encoded as by `encodeURIComponent`).
+  The link text states how many records the archive will list: those with the pillar as primary
+  *or* secondary, foundational work included (`any`). Quarto rewrites these site-absolute links to
+  page-relative ones; the URL they open is the same. Selected outputs link to their archive cards
+  (`/publications/?foundational=include#publication-<slug>`, `/talks/?…#talk-<slug>`); an output
+  that has the pillar only as its secondary pillar is marked "also tagged (secondary pillar)".
+- **Interaction.** `js/pillars.js` (loaded by both pages) closes every panel and makes the four
+  buttons work: selecting a pillar (click, tap, Enter or Space) opens its panel and closes the
+  others, and selecting it again closes it. Hover and keyboard focus only emphasise a pillar. From
+  62rem the four cards surround the umbrella (CSS grid; the DOM order is always umbrella, 1, 2, 3,
+  4); narrower screens, and every screen without JavaScript, show stacked cards. Transitions are
+  brief and are off when the reader prefers reduced motion. `pillarHref()` builds the same archive
+  links as R (`tests/fixtures/pillar_links.json` holds the expected links for both).
+
+`pillars.json` has exactly the four pillars as keys, in canonical order:
+
+```json
+{"<pillar name>": {
+   "number": 1,
+   "publications": {"primary": 1, "any": 2, "keys": ["..."], "representative": ["..."], "representative_secondary": 1},
+   "talks":        {"primary": 1, "any": 1, "keys": ["..."], "representative": ["..."], "representative_secondary": 0},
+   "topic_tags": ["..."]}}
+```
+
+- `keys`: the records with the pillar as primary or secondary, in archive order; `any` is their
+  number and `primary` how many of them have it as primary pillar.
+- `representative`: up to three keys, those with the pillar as primary first (featured first, then
+  newest), then those with it as secondary (newest first). The last `representative_secondary`
+  keys are the secondary-pillar records.
+- `topic_tags`: up to eight tags of the pillar's publications and talks (primary or secondary),
+  the tags on the most records first, ties in alphabetical order ignoring case; `[]` when none.
+
+## Browser tests
+
 The tests need [Node.js](https://nodejs.org/) 22 or later. Install the pinned tools once:
 
 ```bash
@@ -143,7 +199,7 @@ npx playwright install chromium         # the browser Playwright drives
 Then:
 
 ```bash
-npm run test:unit                       # pure filter and map logic, vendored files (node --test)
+npm run test:unit                       # pure filter, map and pillar-link logic, vendored files (node --test)
 npm run data:fixture                    # build data/generated/ from the synthetic fixtures
 quarto render                           # build _site/ from that data
 npm run test:e2e                        # browser tests against _site/, with and without JavaScript
@@ -154,6 +210,7 @@ with fixture or live data. With fixture data they also require the cases they ch
 (an In Review record, secondary pillars, foundational work, a virtual talk, a talk without
 coordinates, two talks at one location, and so on); when testing live data that may lack them, set
 `E2E_DATA=live`. The template-escaping tests render small scratch sites with hostile synthetic
-records, so `quarto` must be on `PATH` (or set `QUARTO` to its path). Every browser test serves a
+records, so `quarto` must be on `PATH` (or set `QUARTO` to its path); the pillar component's
+scratch site also runs its R chunk with this repository's renv library. Every browser test serves a
 blank image for each OpenStreetMap tile, so the tests never contact the tile servers, and fails on
 any script error, console error or failed request it did not cause on purpose.

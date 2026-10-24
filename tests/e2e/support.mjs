@@ -105,9 +105,15 @@ export const queryOf = (page) => Object.fromEntries(new URL(page.url()).searchPa
 // template and scripts (files or whole directories), with synthetic data
 // files: { "talks.yml": records } is written as YAML, a .json or .geojson
 // file as JSON. `resources` are the project resources to publish; `theme`
-// is a theme file among `files` (the site's styles), if any.
-export function renderScratchSite(prefix, files, data, { resources = ["js/*.js"], theme } = {}) {
+// is a theme file among `files` (the site's styles), if any. With `renv`,
+// R code chunks run with this repository's renv library (the scratch site
+// gets an .Rprofile that activates it), as they do in the real site.
+export function renderScratchSite(prefix, files, data, { resources = ["js/*.js"], theme, renv = false } = {}) {
   const scratch = mkdtempSync(path.join(tmpdir(), prefix));
+  if (renv) {
+    const project = JSON.stringify(root.replace(/[\\/]+$/, ""));
+    writeFileSync(path.join(scratch, ".Rprofile"), `Sys.setenv(RENV_PROJECT = ${project})\nsource(file.path(${project}, "renv", "activate.R"))\n`);
+  }
   writeFileSync(path.join(scratch, "_quarto.yml"), [
     "project:", "  type: website", "  render:", '    - "*.qmd"', "  resources:",
     ...resources.map((resource) => `    - ${JSON.stringify(resource)}`),

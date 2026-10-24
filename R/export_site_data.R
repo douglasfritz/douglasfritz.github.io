@@ -120,19 +120,41 @@ talks_geojson <- function(talks) {
 }
 
 # Records assigned to `pillar` as primary or secondary (`keys`, in archive
-# order), and up to three representative records chosen from those with it
-# as primary pillar: featured first, then newest.
+# order), and up to three representative records: those with it as primary
+# pillar first (featured first, then newest), then those with it as secondary
+# pillar, newest first. The last `representative_secondary` keys of
+# `representative` are the secondary-pillar records.
 pillar_records <- function(x, pillar) {
   primary <- x$primary_pillar %in% pillar
-  assigned <- primary | x$secondary_pillar %in% pillar
+  secondary <- !primary & x$secondary_pillar %in% pillar
   featured <- x$featured %in% "Y"
-  representative <- c(x$key[primary & featured], x$key[primary & !featured])
+  representative <- utils::head(
+    c(x$key[primary & featured], x$key[primary & !featured], x$key[secondary]),
+    3
+  )
   list(
     primary = sum(primary),
-    any = sum(assigned),
-    keys = as.list(x$key[assigned]),
-    representative = as.list(utils::head(representative, 3))
+    any = sum(primary | secondary),
+    keys = as.list(x$key[primary | secondary]),
+    representative = as.list(representative),
+    representative_secondary = sum(representative %in% x$key[secondary])
   )
+}
+
+# Up to `limit` topic tags of the publications and talks assigned to
+# `pillar` (primary or secondary): most records first, then alphabetical
+# ignoring case (then exact, C-locale). A list, so that it is always a JSON array.
+pillar_topic_tags <- function(publications, talks, pillar, limit = 8) {
+  assigned <- function(x) x$primary_pillar %in% pillar | x$secondary_pillar %in% pillar
+  tags <- unlist(
+    c(publications$topic_tags[assigned(publications)], talks$topic_tags[assigned(talks)]),
+    use.names = FALSE
+  )
+  if (length(tags) == 0) return(list())
+  distinct <- unique(tags)
+  records <- tabulate(match(tags, distinct), nbins = length(distinct))
+  ranked <- distinct[order(-records, tolower(distinct), distinct, method = "radix")]
+  as.list(utils::head(ranked, limit))
 }
 
 # Named by the four configured pillars, in canonical order.
@@ -141,7 +163,8 @@ pillar_summary <- function(publications, talks, pillars = site_config$pillars) {
     list(
       number = i,
       publications = pillar_records(publications, pillars[[i]]),
-      talks = pillar_records(talks, pillars[[i]])
+      talks = pillar_records(talks, pillars[[i]]),
+      topic_tags = pillar_topic_tags(publications, talks, pillars[[i]])
     )
   })
   stats::setNames(summary, pillars)

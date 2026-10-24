@@ -8,6 +8,7 @@ Depends:
 Imports:
     curl,
     dplyr,
+    htmltools,
     jsonlite,
     knitr,
     lubridate,

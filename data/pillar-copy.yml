@@ -1,0 +1,20 @@
+# Research-pillar copy for the pillar component (R/pillar_cards.R, shown on
+# the Research and Home pages): each pillar's role and the questions it
+# includes. Keys are the exact pillar names of R/config.R (site_config$pillars),
+# in canonical order; tests/testthat/test-pillar-cards.R checks that they
+# match, so copy cannot drift from the controlled values.
+#
+# DRAFT: taken from the design specification (section 7); the wording is to be
+# approved before launch. Plain text only (it is HTML-escaped when rendered).
+"Infectious-disease biology, evolution and environment":
+  role: "Core scientific questions."
+  includes: "Dengue, Zika, Japanese encephalitis virus, other pathogens, transmission, viral fitness, temperature, antigenicity, neutralization, vaccines, and evolution."
+"Quantitative and experimental biomedical discovery":
+  role: "Methods and discovery practice."
+  includes: "Experimental virology, assay development, laboratory automation, phylogenetics, phylodynamics, statistical and computational modelling, spatial transcriptomics, single-cell analysis, and machine learning."
+"Clinical translation and health-system improvement":
+  role: "Patient and health-system application."
+  includes: "Reproductive health, emergency-care access, pain management, health-services research, trainee wellbeing, patient communication, and clinically relevant implementation."
+"Climate and planetary health in medicine":
+  role: "Perspective, values, and applied field."
+  includes: "Extreme heat, air quality, vector-borne disease, climate-health education, healthcare sustainability, preparedness, environmental justice, and community vulnerability."
