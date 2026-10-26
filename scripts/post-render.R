@@ -7,4 +7,9 @@ source(file.path("R", "skip_link.R"))
 link <- read_skip_link(file.path("includes", "skip-link.html"))
 outputs <- strsplit(Sys.getenv("QUARTO_PROJECT_OUTPUT_FILES"), "\n", fixed = TRUE)[[1]]
 pages <- outputs[grepl("[.]html$", outputs)]
+# Never skip every page silently: Quarto sets the list for a post-render step.
+if (length(pages) == 0) {
+  stop("QUARTO_PROJECT_OUTPUT_FILES lists no HTML pages, so no page would get the skip link. ",
+       "Run this script as the project's post-render step (quarto render).", call. = FALSE)
+}
 for (page in pages) insert_skip_link_file(page, link)

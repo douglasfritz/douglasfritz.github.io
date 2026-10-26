@@ -15,6 +15,12 @@ page_html <- function(in_main = "", title = "Talks & Reach", head = "") {
   )
 }
 count_links <- function(html) sum(gregexpr("skip-link", html, fixed = TRUE)[[1]] > 0)
+# The MD5 checksum of a string's bytes, as tools::md5sum gives for a file.
+digest_of <- function(text) {
+  path <- withr::local_tempfile()
+  writeBin(charToRaw(text), path)
+  unname(tools::md5sum(path))
+}
 
 test_that("the skip link is inserted once, just after <body>, before the navbar", {
   inserted <- insert_skip_link(page_html(), skip_link)
@@ -32,6 +38,36 @@ test_that("inserting is idempotent, and a skip link already elsewhere is moved, 
   from_main <- insert_skip_link(page_html(in_main = paste0(skip_link, "\n")), skip_link)
   expect_identical(from_main, once)
   expect_identical(count_links(from_main), 1L)
+})
+
+test_that("a page with two skip links ends with exactly one, first in <body>", {
+  twice <- page_html(in_main = paste0(skip_link, "\n<p>text</p>\n", skip_link, "\n"))
+  expect_identical(count_links(twice), 2L)
+  inserted <- insert_skip_link(twice, skip_link)
+  expect_identical(count_links(inserted), 1L)
+  expect_match(inserted, paste0('<body class="nav-fixed fullcontent">\n', skip_link, "\n"), fixed = TRUE)
+  expect_identical(inserted, insert_skip_link(page_html(in_main = "<p>text</p>\n"), skip_link))
+})
+
+test_that("a page over 1 MB is kept whole, byte for byte, and a second run changes nothing", {
+  # About 2.5 MB of markup with non-ASCII text after the insertion point.
+  chunk <- enc2utf8("<p>Caf\u00e9 \u2013 r\u00e9sum\u00e9 \u00b7 a long line of ordinary page text.</p>\n")
+  body_text <- paste(rep(chunk, ceiling(2.5e6 / nchar(chunk, type = "bytes"))), collapse = "")
+  html <- enc2utf8(page_html(in_main = body_text))
+  expect_gt(nchar(html, type = "bytes"), 2.5e6)
+  inserted <- insert_skip_link(html, skip_link)
+  # Exactly the link and one line break more, and nothing else changed.
+  expect_identical(nchar(inserted, type = "bytes"), nchar(html, type = "bytes") + nchar(skip_link, type = "bytes") + 1L)
+  expect_identical(charToRaw(sub(paste0("\n", skip_link), "", inserted, fixed = TRUE)), charToRaw(html))
+  expect_match(inserted, paste0(chunk, "<script type=\"module\""), fixed = TRUE)
+  expect_true(endsWith(inserted, "</main>\n</body></html>\n"))
+  expect_identical(insert_skip_link(inserted, skip_link), inserted)
+  # The same through a file.
+  path <- withr::local_tempfile(fileext = ".html")
+  writeBin(charToRaw(html), path)
+  insert_skip_link_file(path, skip_link)
+  expect_equal(file.size(path), nchar(inserted, type = "bytes"))
+  expect_identical(unname(tools::md5sum(path)), digest_of(inserted))
 })
 
 test_that("the <body> tag is looked for only after </head>", {
@@ -91,4 +127,37 @@ test_that("the site config adds the link after rendering, never through Quarto's
   expect_false(grepl("skip-link", site_script, fixed = TRUE))
   post_render <- paste(readLines(repo_root("scripts", "post-render.R"), warn = FALSE), collapse = "\n")
   expect_match(post_render, "insert_skip_link_file", fixed = TRUE)
+})
+
+# scripts/post-render.R in a fresh R process, from the repository root, with
+# QUARTO_PROJECT_OUTPUT_FILES set to `outputs` (NA: unset).
+run_post_render <- function(outputs) {
+  rscript <- file.path(R.home("bin"), "Rscript")
+  withr::with_dir(normalizePath(repo_root()), withr::with_envvar(
+    c(QUARTO_PROJECT_OUTPUT_FILES = outputs),
+    suppressWarnings(system2(rscript, file.path("scripts", "post-render.R"), stdout = TRUE, stderr = TRUE))
+  ))
+}
+
+test_that("the post-render step fails loudly when Quarto gives it no pages", {
+  for (outputs in list(NA_character_, "", "index.xml\nsitemap.xml")) {
+    output <- run_post_render(outputs)
+    expect_false(is.null(attr(output, "status")), info = outputs)
+    expect_gt(attr(output, "status"), 0)
+    expect_match(paste(output, collapse = "\n"), "QUARTO_PROJECT_OUTPUT_FILES lists no HTML pages", fixed = TRUE)
+  }
+})
+
+test_that("the post-render step puts the skip link first in every listed page", {
+  site <- withr::local_tempdir()
+  pages <- file.path(site, c("index.html", file.path("about", "index.html")))
+  dir.create(file.path(site, "about"))
+  for (page in pages) writeBin(charToRaw(enc2utf8(page_html(title = "Caf\u00e9"))), page)
+  output <- run_post_render(paste(c(normalizePath(pages), file.path(site, "search.json")), collapse = "\n"))
+  expect_null(attr(output, "status"))
+  for (page in pages) {
+    html <- rawToChar(readBin(page, "raw", file.size(page)))
+    expect_identical(count_links(html), 1L)
+    expect_match(html, paste0('<body class="nav-fixed fullcontent">\n', skip_link), fixed = TRUE)
+  }
 })

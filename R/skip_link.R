@@ -24,6 +24,10 @@ read_skip_link <- function(path) {
   enc2utf8(lines)
 }
 
+# `x` from byte `start` to its end. (substring() without an end stops at
+# 1,000,000 characters, which would cut a large page short.)
+rest_of <- function(x, start) substr(x, start, nchar(x, type = "bytes"))
+
 # `html` (one UTF-8 page, as one string) with exactly one skip link, `link`,
 # just after its <body> tag. Any skip link already in the page is removed
 # first, so the step is idempotent. The <body> tag is looked for only after
@@ -37,10 +41,10 @@ insert_skip_link <- function(html, link) {
   head_end <- regexpr("</head>", without, fixed = TRUE, useBytes = TRUE)
   if (head_end < 0) stop("the page has no </head> tag", call. = FALSE)
   after_head <- head_end + attr(head_end, "match.length")
-  body <- regexpr("<body\\b[^>]*>", substring(without, after_head), perl = TRUE, useBytes = TRUE)
+  body <- regexpr("<body\\b[^>]*>", rest_of(without, after_head), perl = TRUE, useBytes = TRUE)
   if (body < 0) stop("the page has no <body> tag after </head>", call. = FALSE)
   body_end <- after_head - 1 + body + attr(body, "match.length") - 1
-  inserted <- paste0(substr(without, 1, body_end), "\n", link, substring(without, body_end + 1))
+  inserted <- paste0(substr(without, 1, body_end), "\n", link, rest_of(without, body_end + 1))
   Encoding(inserted) <- "UTF-8"
   inserted
 }
