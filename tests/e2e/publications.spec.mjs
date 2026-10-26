@@ -136,6 +136,9 @@ test("every public publication is rendered exactly once, in archive order", asyn
 });
 
 test("cards show each record's metadata and only its available links", async ({ page }) => {
+  // Every card is checked in full: the default 30s plus a share per record,
+  // so that the live sheet's larger data never times out.
+  test.setTimeout(30_000 + 1_000 * publications.length);
   // Every card visible, foundational work included (a no-op without JavaScript).
   await page.goto(`${PAGE}?foundational=include`);
   for (const record of publications) {
@@ -201,6 +204,8 @@ test("In Review records carry the exact status and never look published", async 
 });
 
 test("ScholarlyArticle JSON-LD is emitted for Published records only", async ({ page }) => {
+  // One check per record: the default 30s plus a share per record.
+  test.setTimeout(30_000 + 500 * publications.length);
   await page.goto(PAGE);
   const published = publications.filter((record) => record.status === "Published");
   for (const record of publications) {
@@ -233,6 +238,8 @@ test("ScholarlyArticle JSON-LD is emitted for Published records only", async ({ 
 // ---- Without JavaScript ------------------------------------------------------
 
 test("without JavaScript every publication, foundational work included, is readable and linked, and no dead controls show", { tag: "@no-js" }, async ({ page }) => {
+  // One check per record: the default 30s plus a share per record.
+  test.setTimeout(30_000 + 500 * publications.length);
   // A filter query cannot hide anything without the script.
   await page.goto(`${PAGE}?status=Published&year=1900`);
   await expect(page.locator("form[data-archive-filters]")).toBeHidden();
@@ -298,6 +305,9 @@ test("combined filters match the reference, survive a reload and reset", { tag: 
   const sampled = new Set(indexes.map((index) => publications[index]));
   const foundational = publications.find(isFoundational);
   if (foundational) sampled.add(foundational);
+  // Each sampled record is filtered, reloaded and reset: the default 30s
+  // plus a share per record.
+  test.setTimeout(30_000 + 5_000 * sampled.size);
   for (const record of sampled) {
     const state = {
       text: searchTerm(record),
@@ -338,6 +348,9 @@ test("each filter alone matches the reference", { tag: "@js" }, async ({ page })
     { text: `${searchTerm(publications[0])} zz-absent-term` },
     { foundational: INCLUDE }
   ];
+  // As many states as the data has statuses and years: the default 30s plus
+  // a share per state.
+  test.setTimeout(30_000 + 1_500 * states.length);
   for (const state of states) {
     await applyFilters(page, state);
     await expectView(page, state);

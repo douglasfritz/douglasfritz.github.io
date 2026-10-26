@@ -225,6 +225,9 @@ test("every public talk is rendered exactly once, in archive order", async ({ pa
 });
 
 test("cards show each talk's details and only its available links", async ({ page }) => {
+  // Every card is checked in full: the default 30s plus a share per talk, so
+  // that the live sheet's larger data never times out.
+  test.setTimeout(30_000 + 1_000 * talks.length);
   await page.goto(ALL);
   for (const record of talks) {
     const c = card(page, record.key);
@@ -283,6 +286,8 @@ test("cards show each talk's details and only its available links", async ({ pag
 });
 
 test("virtual talks say 'Virtual — hosted by' with a badge; in-person talks show only their location", async ({ page }) => {
+  // One check per talk: the default 30s plus a share per talk.
+  test.setTimeout(30_000 + 500 * talks.length);
   await page.goto(ALL);
   await expect(page.locator("article.talk-card .virtual-badge")).toHaveCount(talks.filter(isVirtual).length);
   for (const record of talks) {
@@ -327,6 +332,8 @@ test("the archive keeps the ids and attributes the map will use", async ({ page 
 // ---- Without JavaScript ------------------------------------------------------
 
 test("without JavaScript every talk is readable, foundational work included, with figures for all talks", { tag: "@no-js" }, async ({ page }) => {
+  // One check per talk: the default 30s plus a share per talk.
+  test.setTimeout(30_000 + 500 * talks.length);
   // A filter query cannot hide anything without the script.
   await page.goto(`${PAGE}?virtual=Y&year=1900`);
   await expect(page.locator("form[data-archive-filters]")).toBeHidden();
@@ -394,6 +401,9 @@ test("foundational work is hidden by default and revealed by its labelled checkb
 });
 
 test("combined filters match the reference, survive a reload and reset", { tag: "@js" }, async ({ page }) => {
+  // Each sampled talk is filtered, reloaded and reset: the default 30s plus a
+  // share per talk.
+  test.setTimeout(30_000 + 5_000 * sampled.length);
   for (const record of sampled) {
     const state = stateFor(record);
     expect(expectedKeys(state), `${record.key} matches its own filters`).toContain(record.key);
@@ -444,6 +454,9 @@ test("each filter alone matches the reference", { tag: "@js" }, async ({ page })
     { text: `${first.author.split(/[;,]/)[0]} ${searchTerm(first)}` },
     { text: `${searchTerm(first)} zz-absent-term` }
   ];
+  // As many states as the data has years, types and scopes: the default 30s
+  // plus a share per state.
+  test.setTimeout(30_000 + 1_500 * states.length);
   for (const state of states) {
     await applyFilters(page, state);
     await expectView(page, state);
@@ -458,6 +471,9 @@ test("each filter alone matches the reference", { tag: "@js" }, async ({ page })
 });
 
 test("pillar links reconstruct the filter on load and agree with pillars.json", { tag: "@js" }, async ({ page }) => {
+  // One archive load per pillar, each listing every talk: the default 30s
+  // plus a share per talk.
+  test.setTimeout(30_000 + 500 * talks.length);
   for (const [name, pillar] of Object.entries(pillars)) {
     await page.goto(`${PAGE}?pillar=${encodeURIComponent(name)}`);
     await expectControls(page, { pillar: name });

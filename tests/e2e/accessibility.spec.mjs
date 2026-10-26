@@ -224,10 +224,6 @@ test("every page has one main, banner and contentinfo landmark, and every naviga
 // ---- Keyboard order and focus visibility ---------------------------------------
 
 test.describe("keyboard", { tag: "@js" }, () => {
-  // A crawl visits every focusable element, so its length follows the data
-  // (the live Talks page has some seventy at 375px: about 10s alone, more
-  // under a full parallel run).
-  test.describe.configure({ timeout: 120_000 });
   for (const viewport of [{ width: 1280, height: 900 }, { width: 375, height: 812 }]) {
     for (const route of ROUTES) {
       test(`${route} at ${viewport.width}px: Tab visits every focusable element in order, each with a visible focus ring, and leaves the page`, async ({ page }) => {
@@ -235,6 +231,10 @@ test.describe("keyboard", { tag: "@js" }, () => {
         await open(page, route);
         const expected = await listTabbables(page);
         expect(expected.length).toBeGreaterThan(5);
+        // The crawl visits every focusable element, so its length follows the
+        // data (the live Talks page has some seventy at 375px): the default
+        // 30s plus a share per element.
+        test.setTimeout(30_000 + 1_000 * expected.length);
         const visited = await crawlTabOrder(page, { limit: expected.length + 5, label: `${route} at ${viewport.width}px` });
         expect(visited.map((focus) => focus.name)).toEqual(expected.map((element) => element.name));
         expect(visited.map((focus) => focus.id)).toEqual(expected.map((element) => element.id));
@@ -409,6 +409,8 @@ test.describe("names", { tag: "@js" }, () => {
   }
 
   test("per-card links and buttons name their record after their visible text", async ({ page }) => {
+    // Checks per card: the default 30s plus a share per record.
+    test.setTimeout(30_000 + 500 * (talks.length + publications.length));
     await open(page, "/talks/", "?foundational=include");
     const talkLinks = page.locator("#talk-records .record-links a");
     if (!liveData) expect(await talkLinks.count()).toBeGreaterThan(0);
@@ -532,6 +534,8 @@ test.describe("forced colours", { tag: "@js" }, () => {
   });
 
   test("the selected marker and card keep an outline; badges keep their shapes; the focus ring stays", async ({ page }) => {
+    // A badge check per publication: the default 30s plus a share per record.
+    test.setTimeout(30_000 + 500 * publications.length);
     if (!liveData) expect(mappedShownTalk).toBeTruthy();
     if (mappedShownTalk) {
       const { key } = mappedShownTalk.properties;
@@ -640,6 +644,8 @@ test.describe("without JavaScript", { tag: "@no-js" }, () => {
 
   for (const route of ROUTES) {
     test(`${route}: the content is all there, no control or box needs a script, and nothing visible is hidden from assistive technology`, async ({ page }) => {
+      // The archives check every record: the default 30s plus a share per record.
+      test.setTimeout(30_000 + 200 * (talks.length + publications.length));
       await page.goto(route);
       await expect(page.locator("main h1")).toHaveCount(1);
       await CONTENT[route](page);
@@ -699,6 +705,10 @@ test.describe("without JavaScript", { tag: "@no-js" }, () => {
       }
     }
     expect(targets.size).toBeGreaterThanOrEqual(ROUTES.length);
+    // One load per linked page and a check per linked card: the default 30s
+    // plus a share for each.
+    const fragments = [...targets.values()].reduce((sum, ids) => sum + ids.size, 0);
+    test.setTimeout(30_000 + 3_000 * targets.size + 200 * fragments);
     for (const [pageUrl, fragments] of targets) {
       const response = await page.goto(pageUrl);
       expect(response.status(), pageUrl).toBe(200);

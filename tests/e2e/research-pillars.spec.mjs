@@ -456,6 +456,9 @@ for (const pagePath of PAGES) {
     for (const kind of KIND_NAMES) {
       test(`each pillar's ${kind} link opens the ${kind} archive filtered to that pillar`, { tag: "@js" }, async ({ page }) => {
         const { base, records, nouns, pillarControl, foundationalControl, container, count } = KINDS[kind];
+        // One archive load per pillar, each listing every record: the
+        // default 30s plus a share per record.
+        test.setTimeout(30_000 + 500 * records.length);
         for (const [i, name] of PILLAR_NAMES.entries()) {
           const n = i + 1;
           await openEnhanced(page, pagePath);
@@ -488,6 +491,10 @@ for (const pagePath of PAGES) {
 }
 
 test("each selected output opens its archive card, foundational work included", { tag: "@js" }, async ({ page }) => {
+  // Two page loads per selected output (up to three per pillar and kind):
+  // the default 30s plus a share per output.
+  const outputs = PILLAR_NAMES.reduce((sum, name) => sum + KIND_NAMES.reduce((n, kind) => n + pillars[name][kind].representative.length, 0), 0);
+  test.setTimeout(30_000 + 6_000 * outputs);
   let followed = 0;
   for (const [i, name] of PILLAR_NAMES.entries()) {
     for (const kind of KIND_NAMES) {

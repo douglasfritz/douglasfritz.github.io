@@ -204,6 +204,9 @@ test("marker keys follow every filter change, combined filters and reset", { tag
     { text: "zz-no-such-talk-qq" },
     { virtual: "Y", foundational: INCLUDE }
   ];
+  // As many states as the data has years and pillars: the default 30s plus a
+  // share per state.
+  test.setTimeout(30_000 + 1_500 * states.length);
   const seen = new Set();
   for (const state of states) {
     await applyFilters(page, state);
@@ -244,6 +247,9 @@ test("an empty result leaves no markers, a world view and a note", { tag: "@js" 
 });
 
 test("filtered links open the map with exactly those markers from the start", { tag: "@js" }, async ({ page }) => {
+  // Two map loads per pillar, each listing the talks: the default 30s plus a
+  // share per talk.
+  test.setTimeout(30_000 + 500 * talks.length);
   for (const [name, pillar] of Object.entries(pillars)) {
     await openMap(page, `${PAGE}?pillar=${encodeURIComponent(name)}`);
     // Independent of the page: pillars.json, minus foundational work.
@@ -302,6 +308,8 @@ test("if the archive script fails, nothing is hidden and the map shows every map
 });
 
 test("talks without coordinates never get a marker but stay listed and counted", { tag: "@js" }, async ({ page }) => {
+  // Checks per talk: the default 30s plus a share per talk.
+  test.setTimeout(30_000 + 500 * talks.length);
   const unmapped = talks.filter((record) => !mapped.has(record.key));
   if (!liveData) expect(unmapped.length).toBeGreaterThan(0);
   await openMap(page, `${PAGE}?foundational=include`);
@@ -361,6 +369,9 @@ const readPopup = (page) => popup(page).evaluate((node) => ({
 }));
 
 test("popups list the talks at a location; virtual ones say Virtual and Hosted by, never travel", { tag: "@js" }, async ({ page }) => {
+  // One reveal (a zoom or a spread) and popup per mapped talk: the default
+  // 30s plus a share per talk.
+  test.setTimeout(30_000 + 5_000 * features.length);
   await openMap(page, `${PAGE}?foundational=include`);
   const listed = await visibleKeys(page);
   let virtualChecked = 0;
@@ -386,6 +397,9 @@ test("popups list the talks at a location; virtual ones say Virtual and Hosted b
 });
 
 test("Show on map highlights the marker and opens its popup; Escape returns to the card", { tag: "@js" }, async ({ page }) => {
+  // One reveal and popup for each of up to four mapped talks: the default 30s
+  // plus a share per talk.
+  test.setTimeout(30_000 + 10_000 * Math.min(4, mapped.size));
   await openMap(page, `${PAGE}?foundational=include`);
   const keys = [...mapped];
   if (!liveData) expect(keys.length).toBeGreaterThan(1);
@@ -424,6 +438,9 @@ test("Show on map highlights the marker and opens its popup; Escape returns to t
 });
 
 test("selecting a marker by mouse or keyboard moves focus to its card", { tag: "@js" }, async ({ page }) => {
+  // Reveals and three selections for each of up to four mapped talks: the
+  // default 30s plus a share per talk.
+  test.setTimeout(30_000 + 10_000 * Math.min(4, mapped.size));
   await openMap(page, `${PAGE}?foundational=include`);
   // The page jumps to the card at once (never a smooth scroll, which Chrome
   // can cancel after another scroll was interrupted), so the card is in view
@@ -470,6 +487,9 @@ test("a popup's talk title moves focus to that talk's card", { tag: "@js" }, asy
   await openMap(page, `${PAGE}?foundational=include`);
   const group = sharedPlaces[0] ?? [features[0]].filter(Boolean);
   if (!liveData) expect(group.length).toBeGreaterThan(1);
+  // A reveal and a jump per talk at the location: the default 30s plus a
+  // share per talk.
+  test.setTimeout(30_000 + 10_000 * group.length);
   for (const feature of group) {
     const first = group[0].properties.key;
     await showButton(page, first).click();
@@ -515,6 +535,9 @@ test("talks at one location cluster, then spread out in place from the keyboard"
 });
 
 test("virtual markers differ in shape and carry a V; numbers and fills follow the primary pillar", { tag: "@js" }, async ({ page }) => {
+  // One reveal (a zoom or a spread) and popup per mapped talk: the default
+  // 30s plus a share per talk.
+  test.setTimeout(30_000 + 5_000 * features.length);
   await openMap(page, `${PAGE}?foundational=include`);
   const fills = { 1: "rgb(37, 50, 55)", 2: "rgb(92, 107, 115)", 3: "rgb(157, 180, 192)", 4: "rgb(194, 223, 227)" };
   const text = { 1: "rgb(255, 255, 255)", 2: "rgb(255, 255, 255)", 3: "rgb(37, 50, 55)", 4: "rgb(37, 50, 55)" };
@@ -595,6 +618,9 @@ test("the map has an accessible name, skip links and a text legend", { tag: "@js
 });
 
 test("Tab moves into the map, through its controls and out again, with a visible focus ring", { tag: "@js" }, async ({ page }) => {
+  // One Tab per marker or cluster on the map: the default 30s plus a share
+  // per mapped talk.
+  test.setTimeout(30_000 + 1_500 * mapped.size);
   await openMap(page);
   await page.getByRole("link", { name: "Skip map and view talks" }).focus();
   await page.keyboard.press("Tab");
@@ -721,6 +747,9 @@ test("with a mouse the map drags as usual and shows no touch hint (control)", { 
 
 for (const viewport of [{ width: 375, height: 812 }, { width: 1280, height: 900 }]) {
   test(`the map fits a ${viewport.width}px screen without horizontal scrolling`, { tag: "@js" }, async ({ page }) => {
+    // One reveal and popup for each of up to four mapped talks: the default
+    // 30s plus a share per talk.
+    test.setTimeout(30_000 + 10_000 * Math.min(4, mapped.size));
     await page.setViewportSize(viewport);
     await openMap(page, `${PAGE}?foundational=include`);
     const sizes = await page.evaluate(() => ({

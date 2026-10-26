@@ -408,6 +408,8 @@ test("each Selected work link opens its card on the archive page", async ({ page
     }
   }
   if (!liveData) expect(links.length).toBeGreaterThanOrEqual(2);
+  // One archive load per link: the default 30s plus a share per link.
+  test.setTimeout(30_000 + 3_000 * links.length);
   for (const { href, key } of links) {
     await page.goto(href);
     // The link's own fragment names a card on the page: the record's card.
