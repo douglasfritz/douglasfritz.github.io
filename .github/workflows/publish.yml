@@ -1,0 +1,132 @@
+# Builds the site from the live public CV sheet, tests it, and publishes it
+# to the gh-pages branch, which GitHub Pages serves. It runs on every push to
+# main, and on demand: Actions -> "Refresh website data and publish" -> Run
+# workflow, after the sheet is edited. There is deliberately no schedule.
+#
+# Every step must pass. Publishing is the last step, so a sheet that cannot
+# be read, invalid data, or any failed test or check stops the run before
+# anything is published, and the site already live stays as it is.
+# README.md ("Publishing and updates") describes the setup and the routine.
+name: Refresh website data and publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Read-only unless a job says otherwise; see the job's permissions.
+permissions:
+  contents: read
+
+# One run at a time: a new run waits until the one in progress has finished
+# (a deploy in progress is never cancelled), so two runs never publish at once.
+concurrency:
+  group: publish-gh-pages
+  cancel-in-progress: false
+
+# R and knitr output depends on the locale: build in UTF-8.
+env:
+  LANG: C.UTF-8
+  LC_ALL: C.UTF-8
+
+jobs:
+  build-test-publish:
+    name: Build, test and publish
+    runs-on: ubuntu-latest
+    # Locally (10 cores, tools installed) the steps take about 6 minutes, the
+    # browser tests 3-5 of them. The runner has 4 cores and installs
+    # everything first (the R packages are cached after the first run), so
+    # expect 20-30 minutes. The limit leaves margin and stops a hung run.
+    timeout-minutes: 60
+    permissions:
+      # Write access is needed only to push the built site to the gh-pages
+      # branch in the last step. The push uses this job's GITHUB_TOKEN, which
+      # actions/checkout keeps in the repository's git configuration; no other
+      # credential or secret is used, and the public sheet needs none.
+      contents: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # The Quarto release used to build and test the site locally.
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
+        with:
+          version: 1.9.38
+
+      # The R version recorded in renv.lock. Packages come as Linux binaries
+      # from Posit Package Manager (the action's default on Linux).
+      - name: Set up R
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          r-version: renv
+
+      # Build headers for the two renv.lock packages that need a system
+      # library when built from source: curl (libcurl) and fs (libuv). The
+      # binaries normally need neither; this keeps a source build working.
+      - name: Install system libraries for R packages
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libcurl4-openssl-dev libuv1-dev
+
+      - name: Restore the R packages (renv)
+        uses: r-lib/actions/setup-renv@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install Node packages
+        run: npm ci
+
+      - name: Install the browser for the browser tests
+        run: npx playwright install --with-deps chromium
+
+      # Reads the live public sheet. Fails, naming each bad record and field,
+      # if the sheet cannot be read or any public record is invalid.
+      - name: Fetch and validate the public sheet data
+        run: Rscript scripts/build_data.R
+
+      - name: R tests
+        run: Rscript tests/testthat.R
+
+      - name: JavaScript unit tests
+        run: npm run test:unit
+
+      - name: Render the site
+        run: quarto render
+
+      # The site is built from live data, so checks that need the fixtures'
+      # special cases are relaxed (tests/e2e/support.mjs); every per-record
+      # check still runs.
+      - name: Browser tests
+        id: browser-tests
+        run: npx playwright test
+        env:
+          E2E_DATA: live
+
+      # Only when the browser tests fail: their HTML report and traces, to
+      # download from the run's summary page.
+      - name: Upload the browser test report
+        if: failure() && steps.browser-tests.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+      - name: Verify the public output
+        run: Rscript scripts/verify_generated_public_data.R
+
+      # Publishes the _site/ that was just tested, as it is (render: false),
+      # with a .nojekyll file added so that GitHub Pages serves it unchanged.
+      # Only from main: a run started on another branch builds and tests but
+      # never publishes. Nothing may follow this step.
+      - name: Publish to GitHub Pages
+        if: success() && github.ref == 'refs/heads/main'
+        uses: quarto-dev/quarto-actions/publish@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
+        with:
+          target: gh-pages
+          render: false

@@ -6,8 +6,10 @@ infectious-disease biology, quantitative discovery, clinical translation, and pl
 
 ## Requirements
 
-- [Quarto](https://quarto.org/docs/get-started/) on your `PATH`. RStudio and Positron each bundle a copy of Quarto; if
-  `quarto` is not found in your shell, add the bundled `bin` directory to `PATH`.
+- [Quarto](https://quarto.org/docs/get-started/) on your `PATH` (the site is built and tested with 1.9.38, the
+  version the publishing workflow installs). RStudio and Positron each bundle a copy of Quarto; if `quarto` is not
+  found in your shell, add the bundled `bin` directory to `PATH`. On macOS, RStudio's copy is used with
+  `export PATH="/Applications/RStudio.app/Contents/Resources/app/quarto/bin:$PATH"`.
 - R (4.4 or later), to run the tests and the data script, and for `quarto render` itself: the Home,
   Research, About and CV pages run small R chunks at build time (see "Research pillars" and "Home,
   About and CV pages" below), so Quarto must find `Rscript` (on `PATH`, or set `QUARTO_R`). R packages are pinned with
@@ -15,6 +17,137 @@ infectious-disease biology, quantitative discovery, clinical translation, and pl
   automatically when started from the repository root. On a new machine, install the pinned
   packages once with `Rscript -e 'renv::restore()'`. To add a package, list it in `DESCRIPTION`,
   then run `renv::install()` and `renv::snapshot()`.
+- [Node.js](https://nodejs.org/) 22 or later, for the JavaScript and browser tests (see "Browser tests").
+
+## Publishing and updates
+
+The site is published by the GitHub Actions workflow `.github/workflows/publish.yml`, named
+**Refresh website data and publish**. It runs on every push to `main` and when started by hand from
+the Actions tab; it never runs on a schedule. Its one job, on GitHub's Ubuntu runner:
+
+1. installs Quarto 1.9.38, R (the version in `renv.lock`) with the renv packages, Node.js 22 with
+   `npm ci`, and Playwright's Chromium;
+2. runs `Rscript scripts/build_data.R`, which reads the live public sheet and validates it;
+3. runs the R tests, the JavaScript unit tests, `quarto render`, and the browser tests with
+   `E2E_DATA=live`;
+4. runs `Rscript scripts/verify_generated_public_data.R`, the final check of the public output;
+5. publishes the `_site/` it has just tested, unchanged, to the `gh-pages` branch, which GitHub Pages
+   serves (`quarto publish gh-pages --no-render`, which adds a `.nojekyll` file).
+
+Publishing is the last step and needs every earlier step to pass, so an unreadable sheet, invalid
+data or any failed test or check stops the run and **the site already live stays as it is**. Only a
+run on `main` publishes: started on another branch, the workflow builds and tests but does not
+publish. One run happens at a time: a run started while another is in progress waits for it (of
+several waiting runs, only the newest runs). No secret is needed: the sheet is public, and the push
+to `gh-pages` uses the repository's own `GITHUB_TOKEN`, which the workflow allows to write to the
+repository in that job only.
+
+### One-time GitHub setup
+
+1. The workflow cannot create the `gh-pages` branch: Quarto refuses to create it during a workflow
+   run, and the run fails at its last step. Before the first push to `main`, create an empty
+   `gh-pages` branch and push both branches together:
+
+   ```bash
+   git branch gh-pages "$(git commit-tree -m 'Initialise gh-pages branch' "$(git mktree < /dev/null)")"
+   git push origin main gh-pages
+   ```
+
+   The first command makes a branch with one empty commit and no history, without touching your
+   working files. Check that **Settings → General → Default branch** is `main`. If `main` was pushed
+   first, its run fails at the publish step: push `gh-pages` (`git push origin gh-pages`), then open the
+   failed run and choose **Re-run all jobs**.
+2. **Settings → Pages → Build and deployment**: Source **Deploy from a branch**; Branch **`gh-pages`**,
+   folder **`/ (root)`**; **Save**. (A `douglasfritz.github.io` repository may otherwise serve `main`.)
+3. **Settings → Actions → General**: under "Actions permissions", allow actions from other
+   repositories (the default, "Allow all actions and reusable workflows"; the workflow uses
+   `actions/*`, `quarto-dev/quarto-actions` and `r-lib/actions`). Under "Workflow permissions", keep
+   the default **Read repository contents and packages permissions**: the workflow grants its job
+   `contents: write` itself.
+
+### Updating the site after editing the sheet
+
+1. Update the Google Sheet. Set `website_include` to exactly `Y` (capital Y, nothing else) for each
+   record to publish; any other value keeps it off the site.
+2. Open GitHub → the repository → **Actions**.
+3. Select **Refresh website data and publish**.
+4. Choose **Run workflow**, keep the branch `main`, and confirm with **Run workflow**.
+5. Wait for the run to finish green (expect 20-30 minutes; the first run is the slowest), then open
+   https://douglasfritz.github.io/ and check the changed record. GitHub Pages can take a few minutes
+   more, and the browser may need a refresh.
+6. If the run is red, open it and then the step marked with a red cross; its log names the problem.
+   **The site already live is unchanged.** Fix the cause and run the workflow again.
+
+A push to `main` (a change to the code or the pages) starts the same run.
+
+### If a run fails
+
+- **Fetch and validate the public sheet data**: `ERROR: CV data validation failed:` lists each bad
+  record as `<tab>: <key>: <problem>`, naming the field. Correct that cell in the sheet and run the
+  workflow again. A malformed link, for example, must be a full `https://` URL (see "Link URLs").
+  `Unable to read CV source` means the sheet could not be fetched: check that it is still shared as
+  "Anyone with the link can view", or try again later. `No public publications` or `talks` means no
+  row of that tab has `website_include` exactly `Y`.
+- **Verify the public output**: lists each problem by file (and record key and field); for example a
+  link cell holding an email (`mailto`) link, which the site never shows.
+- **Browser tests**: the run keeps a `playwright-report` artifact (HTML report and traces, 7 days) on
+  its summary page. A browser test can fail rarely for reasons of timing (one map test has failed
+  once in many runs): choose **Re-run all jobs**, and report it if it fails again.
+- **Publish to GitHub Pages**: `does not have a branch named "gh-pages"` means step 1 of the one-time
+  setup is missing; a permission error (403) means the workflow could not write to the repository.
+
+### Local equivalents
+
+```bash
+Rscript scripts/build_data.R              # live sheet: as the workflow; fails, writing nothing, on bad data
+npm run data:fixture                      # or: the synthetic fixtures, offline
+Rscript tests/testthat.R                  # R tests
+npm run test:unit                         # JavaScript unit tests
+quarto render                             # build _site/
+npx playwright test                       # browser tests, fixture data
+E2E_DATA=live npx playwright test         # browser tests, data built from the live sheet
+Rscript scripts/verify_generated_public_data.R   # final check of data/generated/ and _site/
+quarto preview                            # look at the site locally
+```
+
+The full check, from a fixture or live data build:
+`Rscript tests/testthat.R && npm run test:unit && quarto render && npx playwright test && Rscript scripts/verify_generated_public_data.R`
+(add `E2E_DATA=live` before `npx playwright test` after a live build). Everything the workflow
+runs works the same on a local machine, except publishing.
+
+Generated, never committed (git-ignored): `data/generated/*` (apart from `.gitkeep`), `_site/`,
+`.quarto/`, `node_modules/`, `renv/library/`, `playwright-report/` and `test-results/`. The workflow
+recreates them on every run (the R packages from its cache).
+
+**Search engines.** `robots.txt` and `sitemap.xml` are written by Quarto into `_site/` from `site-url`
+in `_quarto.yml`; there is no `robots.txt` in the repository. `robots.txt` holds only the line
+`Sitemap: https://douglasfritz.github.io/sitemap.xml`, which allows all crawling, and the sitemap
+lists the six pages. The verification script checks both, and that no page asks not to be indexed.
+
+### Launch checklist (Douglas's approval)
+
+The copy on the pages is a draft. Before launch, approve or edit:
+
+- [ ] the hero and positioning copy on Home, and the About and CV text;
+- [ ] the headshot (`assets/images/headshot.jpg`, a metadata-free web copy) and its alt text;
+- [ ] the CV PDF, once a phone-free, email-free copy is ready: save it as
+  `assets/documents/Douglas_Fritz_CV.pdf` and set `cv_updated` in `data/site.yml` (see "The CV PDF");
+- [ ] the public contact routes: the site lists no email address, only GitHub, ORCID and LinkedIn
+  (decided: no public email). Adding one would be a deliberate change to `data/site.yml`'s schema and
+  its privacy tests, and the verification script rejects email (`mailto`) links;
+- [ ] the interface text added for accessibility: the skip link ("Skip to main content"), the
+  no-JavaScript pillar note, the touch-map hint and the zero-talk reach note;
+- [ ] the known limitations below;
+- [ ] after the first green run: all six pages load at https://douglasfritz.github.io/.
+
+### Known limitations
+
+- The map marks a virtual talk with a "V" (drawn by CSS), not the word "Virtual"; the talk's card and
+  map popup say "Virtual". (The design asks for a visible "Virtual" badge.)
+- On screens narrower than 48rem (768 px), the archives' closed "Research pillar" select truncates a
+  long pillar name (see "Browser tests").
+- Without JavaScript, the four pillar buttons stay visible but do nothing; every panel is shown open.
+- A pillar's selected outputs can include foundational work (Home's Selected work never does).
 
 ## Local commands
 
@@ -39,7 +172,7 @@ missing summary or a talk without coordinates, are printed as `WARNING:` lines. 
 - `--output-dir D`: where generated data goes (default `data/generated`).
 
 ```bash
-Rscript scripts/build_data.R            # build from the live public sheet (what CI does)
+Rscript scripts/build_data.R            # build from the live public sheet (as the publishing workflow does)
 Rscript scripts/build_data.R --publications tests/fixtures/journal_articles.csv --talks tests/fixtures/conferences.csv
                                         # offline build from the synthetic fixtures, for local previews
 ```
@@ -56,8 +189,8 @@ Both write five files into `data/generated/`:
 
 All five files are prepared before any is written, then replace the previous build together. A
 failed build leaves the previous files as they were. Generated data is not committed:
-`data/generated/` is git-ignored apart from its `.gitkeep` placeholder. CI builds it from the live
-sheet, and locally you build it from the fixtures (or the sheet) before previewing.
+`data/generated/` is git-ignored apart from its `.gitkeep` placeholder. The publishing workflow builds
+it from the live sheet, and locally you build it from the fixtures (or the sheet) before previewing.
 
 ### Link URLs
 
@@ -291,16 +424,8 @@ the approved PDF:
    render stops if the PDF is present without a valid date.
 4. Run `quarto render` and the tests, then commit the PDF and `data/site.yml`.
 
-### Launch checklist (Douglas's approval)
-
-The copy on these pages is a draft. Before launch, approve or edit:
-
-- [ ] the hero and positioning copy on Home, and the About and CV text;
-- [ ] the headshot (`assets/images/headshot.jpg`, a metadata-free web copy) and its alt text;
-- [ ] the CV PDF, once a phone-free, email-free copy is ready (see above);
-- [ ] the public contact routes: the site currently lists no email address, only GitHub, ORCID and
-  LinkedIn. Adding a public email would be a deliberate change to `data/site.yml`'s schema and its
-  privacy tests.
+The copy on these pages is a draft, to be approved before launch: see "Launch checklist" under
+"Publishing and updates".
 
 ## Browser tests
 
