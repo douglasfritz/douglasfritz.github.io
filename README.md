@@ -23,29 +23,40 @@ infectious-disease biology, quantitative discovery, clinical translation, and pl
 
 The site is published by the GitHub Actions workflow `.github/workflows/publish.yml`, named
 **Refresh website data and publish**. It runs on every push to `main` and when started by hand from
-the Actions tab; it never runs on a schedule. Its one job, on GitHub's Ubuntu runner:
+the Actions tab; it never runs on a schedule. It has two jobs, on GitHub's Ubuntu 24.04 runner image:
 
-1. installs Quarto 1.9.38, R (the version in `renv.lock`) with the renv packages, Node.js 22 with
-   `npm ci`, and Playwright's Chromium;
-2. runs `Rscript scripts/build_data.R`, which reads the live public sheet and validates it;
-3. runs the R tests, the JavaScript unit tests, `quarto render`, and the browser tests with
-   `E2E_DATA=live`;
-4. runs `Rscript scripts/verify_generated_public_data.R`, the final check of the public output;
-5. publishes the `_site/` it has just tested, unchanged, to the `gh-pages` branch, which GitHub Pages
-   serves (`quarto publish gh-pages --no-render`, which adds a `.nojekyll` file).
+- **build** can only read the repository and keeps no credentials. It installs Quarto 1.9.38, R (the
+  version in `renv.lock`) with the renv packages, Node.js 22 with `npm ci`, and Playwright's
+  Chromium; runs `Rscript scripts/build_data.R`, which reads the live public sheet and validates it;
+  runs the R tests, the JavaScript unit tests, `quarto render`, the browser tests with
+  `E2E_DATA=live`, and `Rscript scripts/verify_generated_public_data.R`, the final check of the
+  public output. Only if all of that passed does it keep the tested `_site/` as the run's `site`
+  artifact (for 1 day).
+- **publish** runs only after build succeeded, and only on `main`. It installs Quarto 1.9.38 (no R
+  or Node.js), takes that `_site/` and publishes it, unchanged, to the `gh-pages` branch, which
+  GitHub Pages serves (`quarto publish gh-pages --no-render`, which adds a `.nojekyll` file).
 
-Publishing is the last step and needs every earlier step to pass, so an unreadable sheet, invalid
-data or any failed test or check stops the run and **the site already live stays as it is**. Only a
-run on `main` publishes: started on another branch, the workflow builds and tests but does not
-publish. One run happens at a time: a run started while another is in progress waits for it (of
-several waiting runs, only the newest runs). No secret is needed: the sheet is public, and the push
-to `gh-pages` uses the repository's own `GITHUB_TOKEN`, which the workflow allows to write to the
-repository in that job only.
+Publishing needs every check to pass, so an unreadable sheet, invalid data or any failed test or
+check stops the run and **the site already live stays as it is**. Started on another branch, the
+workflow builds and tests but does not publish. One run happens at a time: a run started while
+another is in progress waits for it (of several waiting runs, only the newest runs). No secret is
+needed: the sheet is public, and the push to `gh-pages` uses the repository's own `GITHUB_TOKEN`,
+which only the publish job may use to write to the repository.
+
+**Pinned versions.** The runner image (`ubuntu-24.04`), Quarto (`SITE_QUARTO_VERSION` in the
+workflow, now 1.9.38) and every action (a full commit SHA, with its release tag in a comment) are
+fixed, so a run changes only when the repository does. Change them deliberately, one at a time:
+for Quarto, install the new release locally, run the full check below, then change
+`SITE_QUARTO_VERSION` (and the version named in this README); for the image, change `runs-on` in
+both jobs and `runner` in `tests/testthat/test-workflow-contract.R`; for an action, take the new
+release's full commit SHA from its repository and update the tag comment. Then push and watch the
+run. The contract test checks that both jobs use the same Quarto release and every action stays
+pinned.
 
 ### One-time GitHub setup
 
 1. The workflow cannot create the `gh-pages` branch: Quarto refuses to create it during a workflow
-   run, and the run fails at its last step. Before the first push to `main`, create an empty
+   run, and the publish job fails. Before the first push to `main`, create an empty
    `gh-pages` branch and push both branches together:
 
    ```bash
@@ -55,15 +66,15 @@ repository in that job only.
 
    The first command makes a branch with one empty commit and no history, without touching your
    working files. Check that **Settings → General → Default branch** is `main`. If `main` was pushed
-   first, its run fails at the publish step: push `gh-pages` (`git push origin gh-pages`), then open the
-   failed run and choose **Re-run all jobs**.
+   first, its publish job fails: push `gh-pages` (`git push origin gh-pages`), then open the failed run
+   and choose **Re-run all jobs**.
 2. **Settings → Pages → Build and deployment**: Source **Deploy from a branch**; Branch **`gh-pages`**,
    folder **`/ (root)`**; **Save**. (A `douglasfritz.github.io` repository may otherwise serve `main`.)
 3. **Settings → Actions → General**: under "Actions permissions", allow actions from other
    repositories (the default, "Allow all actions and reusable workflows"; the workflow uses
    `actions/*`, `quarto-dev/quarto-actions` and `r-lib/actions`). Under "Workflow permissions", keep
-   the default **Read repository contents and packages permissions**: the workflow grants its job
-   `contents: write` itself.
+   the default **Read repository contents and packages permissions**: the workflow grants its publish
+   job `contents: write` itself.
 
 ### Updating the site after editing the sheet
 
@@ -72,7 +83,8 @@ repository in that job only.
 2. Open GitHub → the repository → **Actions**.
 3. Select **Refresh website data and publish**.
 4. Choose **Run workflow**, keep the branch `main`, and confirm with **Run workflow**.
-5. Wait for the run to finish green (expect 20-30 minutes; the first run is the slowest), then open
+5. Wait for the run to finish green (expect 20-30 minutes, and longer until a first run has
+   succeeded, because the package caches are saved only by a successful run), then open
    https://douglasfritz.github.io/ and check the changed record. GitHub Pages can take a few minutes
    more, and the browser may need a refresh.
 6. If the run is red, open it and then the step marked with a red cross; its log names the problem.
@@ -93,8 +105,9 @@ A push to `main` (a change to the code or the pages) starts the same run.
 - **Browser tests**: the run keeps a `playwright-report` artifact (HTML report and traces, 7 days) on
   its summary page. A browser test can fail rarely for reasons of timing (one map test has failed
   once in many runs): choose **Re-run all jobs**, and report it if it fails again.
-- **Publish to GitHub Pages**: `does not have a branch named "gh-pages"` means step 1 of the one-time
-  setup is missing; a permission error (403) means the workflow could not write to the repository.
+- **Publish to GitHub Pages** (the publish job): `does not have a branch named "gh-pages"` means step 1
+  of the one-time setup is missing; a permission error (403) means the workflow could not write to the
+  repository.
 
 ### Local equivalents
 
@@ -109,6 +122,9 @@ E2E_DATA=live npx playwright test         # browser tests, data built from the l
 Rscript scripts/verify_generated_public_data.R   # final check of data/generated/ and _site/
 quarto preview                            # look at the site locally
 ```
+
+`CI=true npx playwright test` runs the browser tests as the workflow does: an HTML report in
+`playwright-report/`, no `test.only`, and always a fresh local web server.
 
 The full check, from a fixture or live data build:
 `Rscript tests/testthat.R && npm run test:unit && quarto render && npx playwright test && Rscript scripts/verify_generated_public_data.R`
@@ -138,6 +154,9 @@ The copy on the pages is a draft. Before launch, approve or edit:
 - [ ] the interface text added for accessibility: the skip link ("Skip to main content"), the
   no-JavaScript pillar note, the touch-map hint and the zero-talk reach note;
 - [ ] the known limitations below;
+- [ ] before the first push to `main`: run `Rscript scripts/build_data.R` against the live sheet and
+  correct every cell it reports (each error names the record and the field), so that the first
+  workflow run does not fail on a typing slip in the sheet;
 - [ ] after the first green run: all six pages load at https://douglasfritz.github.io/.
 
 ### Known limitations

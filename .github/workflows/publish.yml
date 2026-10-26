@@ -3,10 +3,13 @@
 # main, and on demand: Actions -> "Refresh website data and publish" -> Run
 # workflow, after the sheet is edited. There is deliberately no schedule.
 #
-# Every step must pass. Publishing is the last step, so a sheet that cannot
-# be read, invalid data, or any failed test or check stops the run before
-# anything is published, and the site already live stays as it is.
-# README.md ("Publishing and updates") describes the setup and the routine.
+# Two jobs. `build` fetches the data, runs every test and check, and uploads
+# the tested _site/; it can only read the repository. `publish` runs only if
+# `build` succeeded, and only on main: it downloads that _site/ and pushes it,
+# unchanged, to gh-pages. A sheet that cannot be read, invalid data, or any
+# failed test or check therefore stops the run before anything is published,
+# and the site already live stays as it is. README.md ("Publishing and
+# updates") describes the setup and the routine.
 name: Refresh website data and publish
 
 on:
@@ -14,45 +17,49 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Read-only unless a job says otherwise; see the job's permissions.
+# Read-only unless a job says otherwise; see the publish job.
 permissions:
   contents: read
 
-# One run at a time: a new run waits until the one in progress has finished
-# (a deploy in progress is never cancelled), so two runs never publish at once.
+# One run at a time, build and publish together: a new run waits until the
+# one in progress has finished (a deploy in progress is never cancelled), so
+# an older build can never publish after a newer one.
 concurrency:
   group: publish-gh-pages
   cancel-in-progress: false
 
-# R and knitr output depends on the locale: build in UTF-8.
 env:
+  # R and knitr output depends on the locale: build in UTF-8.
   LANG: C.UTF-8
   LC_ALL: C.UTF-8
+  # The Quarto release the site is built and tested with locally, installed
+  # by both jobs. Change it deliberately, after testing locally (README.md).
+  SITE_QUARTO_VERSION: 1.9.38
 
 jobs:
-  build-test-publish:
-    name: Build, test and publish
-    runs-on: ubuntu-latest
+  build:
+    name: Build and test
+    # A fixed image, not ubuntu-latest, so that the system the site is built
+    # on changes only when this line is changed deliberately (README.md).
+    runs-on: ubuntu-24.04
     # Locally (10 cores, tools installed) the steps take about 6 minutes, the
     # browser tests 3-5 of them. The runner has 4 cores and installs
-    # everything first (the R packages are cached after the first run), so
-    # expect 20-30 minutes. The limit leaves margin and stops a hung run.
+    # everything first (the R packages come from a cache once a run has
+    # succeeded), so expect 20-30 minutes. The limit leaves margin.
     timeout-minutes: 60
     permissions:
-      # Write access is needed only to push the built site to the gh-pages
-      # branch in the last step. The push uses this job's GITHUB_TOKEN, which
-      # actions/checkout keeps in the repository's git configuration; no other
-      # credential or secret is used, and the public sheet needs none.
-      contents: write
+      contents: read
     steps:
+      # No credentials are kept: nothing in this job writes to the repository.
       - name: Check out the repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
-      # The Quarto release used to build and test the site locally.
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
         with:
-          version: 1.9.38
+          version: ${{ env.SITE_QUARTO_VERSION }}
 
       # The R version recorded in renv.lock. Packages come as Linux binaries
       # from Posit Package Manager (the action's default on Linux).
@@ -71,7 +78,7 @@ jobs:
         uses: r-lib/actions/setup-renv@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
           cache: npm
@@ -109,7 +116,7 @@ jobs:
       # download from the run's summary page.
       - name: Upload the browser test report
         if: failure() && steps.browser-tests.outcome == 'failure'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report
           path: |
@@ -120,12 +127,48 @@ jobs:
       - name: Verify the public output
         run: Rscript scripts/verify_generated_public_data.R
 
-      # Publishes the _site/ that was just tested, as it is (render: false),
-      # with a .nojekyll file added so that GitHub Pages serves it unchanged.
-      # Only from main: a run started on another branch builds and tests but
-      # never publishes. Nothing may follow this step.
+      # The last step, so it runs only when every check above has passed:
+      # the tested _site/, handed to the publish job.
+      - name: Upload the tested site
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: site
+          path: _site
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish to GitHub Pages
+    needs: build
+    # Only from main: a run started on another branch builds and tests but
+    # never publishes.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      # The only job that writes: it pushes the tested site to the gh-pages
+      # branch with this job's GITHUB_TOKEN.
+      contents: write
+    steps:
+      # Keeps this job's GITHUB_TOKEN in the git configuration (the default):
+      # quarto publish pushes with git and never reads GITHUB_TOKEN itself.
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
+        with:
+          version: ${{ env.SITE_QUARTO_VERSION }}
+
+      - name: Download the tested site
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: site
+          path: _site
+
+      # Publishes that _site/ as it is (render: false), adding a .nojekyll
+      # file so that GitHub Pages serves it unchanged. Nothing follows it.
       - name: Publish to GitHub Pages
-        if: success() && github.ref == 'refs/heads/main'
         uses: quarto-dev/quarto-actions/publish@8a96df13519ee81fd526f2dfca5962811136661b # v2.2.0
         with:
           target: gh-pages
