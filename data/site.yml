@@ -45,4 +45,4 @@ profiles:
 # date of the approved PDF) when you add the file; the build stops if the
 # PDF is present without a valid date.
 cv_pdf: "assets/documents/Douglas_Fritz_CV.pdf"
-cv_updated: ~
+cv_updated: "2026-10-27"
