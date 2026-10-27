@@ -5,7 +5,9 @@
 source(file.path("R", "skip_link.R"))
 
 link <- read_skip_link(file.path("includes", "skip-link.html"))
-outputs <- strsplit(Sys.getenv("QUARTO_PROJECT_OUTPUT_FILES"), "\n", fixed = TRUE)[[1]]
+# One path per line; a Windows-style list ends its lines with "\r\n", and a
+# path left with a "\r" would not end in ".html" and be skipped silently.
+outputs <- trimws(strsplit(Sys.getenv("QUARTO_PROJECT_OUTPUT_FILES"), "\r?\n")[[1]])
 pages <- outputs[grepl("[.]html$", outputs)]
 # Never skip every page silently: Quarto sets the list for a post-render step.
 if (length(pages) == 0) {

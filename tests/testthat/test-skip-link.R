@@ -148,6 +148,22 @@ test_that("the post-render step fails loudly when Quarto gives it no pages", {
   }
 })
 
+test_that("a Windows-style (CRLF) list still gives every listed page exactly one skip link", {
+  site <- withr::local_tempdir()
+  dir.create(file.path(site, "about"))
+  pages <- file.path(site, c("index.html", file.path("about", "index.html"), "cv.html"))
+  for (page in pages) writeBin(charToRaw(enc2utf8(page_html(title = "Café"))), page)
+  # Split on "\n" alone, each path would keep its "\r" and no longer end in
+  # ".html": every page but the last would be skipped silently.
+  output <- run_post_render(paste(normalizePath(pages), collapse = "\r\n"))
+  expect_null(attr(output, "status"), info = paste(output, collapse = " | "))
+  for (page in pages) {
+    html <- rawToChar(readBin(page, "raw", file.size(page)))
+    expect_identical(count_links(html), 1L, info = page)
+    expect_match(html, paste0('<body class="nav-fixed fullcontent">\n', skip_link), fixed = TRUE, info = page)
+  }
+})
+
 test_that("the post-render step puts the skip link first in every listed page", {
   site <- withr::local_tempdir()
   pages <- file.path(site, c("index.html", file.path("about", "index.html")))

@@ -7,8 +7,10 @@
 #   and map features that are public talks at their [lon, lat] points;
 # - no generated record has a field named phone, email, cv_include, markdown
 #   or website_include, and no link field is a mailto: or tel: link;
-# - no file under data/generated/ and no text file under _site/ contains
-#   "cv_include", a Google Sheets link or the source sheet's ID;
+# - no link field of a generated record is a Google Sheets link (reported by
+#   record key and field), and no file under data/generated/ and no text file
+#   under _site/ contains "cv_include", a Google Sheets link or the source
+#   sheet's ID (a backstop that names only the file);
 # - no page links to a mailto: or tel: address or asks not to be indexed;
 # - every route exists with exactly one skip link, the search index does not
 #   contain the skip link's text, and robots.txt and sitemap.xml are in place.
@@ -25,6 +27,7 @@ routes <- c("index.html", file.path(c("research", "publications", "talks", "abou
 generated_files <- c("publications.yml", "talks.yml", "talks.geojson", "pillars.json", "build-metadata.json")
 inclusion_rule <- "website_include == 'Y'"
 forbidden_fields <- c("phone", "email", "cv_include", "markdown", "website_include")
+sheets_link <- "docs.google.com/spreadsheets"
 # Never scanned as text. Any other file that contains a NUL byte is skipped too.
 binary_extensions <- c("png", "jpg", "jpeg", "gif", "webp", "avif", "ico", "pdf", "woff", "woff2", "ttf", "otf", "eot", "zip", "gz")
 
@@ -85,8 +88,10 @@ record_keys <- function(records) {
 
 # The keys of a parsed list of public records (publications or talks), after
 # reporting its problems; NULL if it is not a list of records. Only the link
-# fields of R/config.R (`link_fields`) are checked for mailto: and tel: links:
-# a title or summary may start with any word.
+# fields of R/config.R (`link_fields`) are checked for mailto: and tel: links
+# (a title or summary may start with any word) and for Google Sheets links
+# (a Google Slides or Docs link is fine); a problem names the record key and
+# the field, never the value.
 check_records <- function(records, file, link_fields, issue) {
   if (!is.list(records) || !is.null(names(records)) || !all(vapply(records, is.list, logical(1)))) {
     issue(sprintf("%s: is not a list of records", file))
@@ -105,6 +110,9 @@ check_records <- function(records, file, link_fields, issue) {
       value <- records[[i]][[field]]
       if (is.character(value) && any(grepl("^\\s*(mailto|tel):", value, ignore.case = TRUE))) {
         issue(sprintf("%s: record '%s' field '%s' is a mailto: or tel: link (the site lists no email address or phone number)", file, keys[[i]], field))
+      }
+      if (is.character(value) && any(grepl(regex_escape(sheets_link), value, ignore.case = TRUE, useBytes = TRUE))) {
+        issue(sprintf("%s: record '%s' field '%s' is a Google Sheets link (%s), which exposes the source sheet", file, keys[[i]], field, sheets_link))
       }
     }
   }
@@ -224,7 +232,7 @@ check_generated <- function(root, issue) {
 check_text_files <- function(root, issue) {
   forbidden <- c(
     "the string 'cv_include'" = "cv_include",
-    "a Google Sheets link (docs.google.com/spreadsheets)" = "docs.google.com/spreadsheets",
+    "a Google Sheets link (docs.google.com/spreadsheets)" = sheets_link,
     "the source sheet's ID" = site_config$sheet_id
   )
   files <- unlist(lapply(c(file.path("data", "generated"), "_site"), function(dir) {

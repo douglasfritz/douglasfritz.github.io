@@ -1,5 +1,7 @@
 _site/
-.quarto/
+# Written exactly so: Quarto appends this line on every render when it is
+# missing, so a differently spelled entry would come back as a duplicate.
+/.quarto/
 node_modules/
 .Rproj.user/
 .Rhistory
@@ -9,10 +11,18 @@ node_modules/
 playwright-report/
 test-results/
 
-/.quarto/
 **/*.quarto_ipynb
+
+# Local secrets and credentials: this is a public repository, and the site
+# needs none (the sheet is public). Guards against an accidental commit.
+.Renviron
+.env
+.env.*
 
 # Generated public site data: built locally from fixtures or in CI from the
 # live sheet, never committed. The placeholder keeps the directory.
 data/generated/*
 !data/generated/.gitkeep
+# The staging directory of a data build that was killed before it cleaned up
+# (R/export_site_data.R).
+data/.generated-staging-*

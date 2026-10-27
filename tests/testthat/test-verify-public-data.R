@@ -149,6 +149,12 @@ mutations <- list(
   "a tel: value in a link field" = list(
     function(root) { p <- synthetic_publications(); p[[1]]$doi_url <- "tel:+10000000000"; write_yaml(root, "data/generated/publications.yml", p) },
     "data/generated/publications.yml: record 'pub-a' field 'doi_url' is a mailto: or tel: link"),
+  "a Google Sheets link in a link field" = list(
+    function(root) { t <- synthetic_talks(); t[[1]]$poster_url <- "https://docs.google.com/spreadsheets/d/SECRET-VALUE/edit"; write_yaml(root, "data/generated/talks.yml", t) },
+    "data/generated/talks.yml: record 'talk-a' field 'poster_url' is a Google Sheets link"),
+  "a Google Sheets link in a publication's link field" = list(
+    function(root) { p <- synthetic_publications(); p[[1]]$doi_url <- "https://DOCS.google.com/SPREADSHEETS/d/SECRET-VALUE"; write_yaml(root, "data/generated/publications.yml", p) },
+    "data/generated/publications.yml: record 'pub-a' field 'doi_url' is a Google Sheets link"),
   "a missing route" = list(
     function(root) unlink(file.path(root, "_site", "cv", "index.html")),
     "_site/cv/index.html: missing"),
@@ -224,6 +230,30 @@ test_that("each kind of problem is reported, naming the file, key and field", {
     expect_false(any(grepl("SECRET-VALUE", issues, fixed = TRUE)), info = name)
     expect_false(isTRUE(suppressMessages(verify$verify_public_output(root))), info = name)
   }
+})
+
+test_that("a Google Sheets link in a link field is reported by record key and field, as well as by file", {
+  root <- synthetic_root()
+  talks <- synthetic_talks()
+  talks[[1]]$poster_url <- "https://docs.google.com/spreadsheets/d/SECRET-VALUE/edit"
+  write_yaml(root, "data/generated/talks.yml", talks)
+  issues <- issues_of(root)
+  expect_true(any(startsWith(issues, "data/generated/talks.yml: record 'talk-a' field 'poster_url' is a Google Sheets link")), info = paste(issues, collapse = " | "))
+  # The global text scan stays as a backstop, and no other record or field is named.
+  expect_true("data/generated/talks.yml: contains a Google Sheets link (docs.google.com/spreadsheets)" %in% issues)
+  expect_false(any(grepl("talk-b|slides_url|event_url", issues)))
+  expect_false(any(grepl("SECRET-VALUE", issues, fixed = TRUE)))
+})
+
+test_that("a Google Slides or Docs link in a link field passes", {
+  root <- synthetic_root()
+  talks <- synthetic_talks()
+  # (talk-a already has a Google Slides link in slides_url.)
+  expect_identical(talks[[1]]$slides_url, "https://docs.google.com/presentation/d/FAKE/edit")
+  talks[[1]]$poster_url <- "https://docs.google.com/document/d/FAKE/edit"
+  talks[[2]]$slides_url <- "https://docs.google.com/presentation/d/FAKE-TWO/edit?usp=sharing"
+  write_yaml(root, "data/generated/talks.yml", talks)
+  expect_identical(issues_of(root), character())
 })
 
 test_that("every problem in one root is reported; a check that fails to run does not hide the others", {

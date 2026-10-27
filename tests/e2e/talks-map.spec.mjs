@@ -484,20 +484,27 @@ test("selecting a marker by mouse or keyboard moves focus to its card", { tag: "
 });
 
 test("a popup's talk title moves focus to that talk's card", { tag: "@js" }, async ({ page }) => {
-  await openMap(page, `${PAGE}?foundational=include`);
   const group = sharedPlaces[0] ?? [features[0]].filter(Boolean);
   if (!liveData) expect(group.length).toBeGreaterThan(1);
-  // A reveal and a jump per talk at the location: the default 30s plus a
-  // share per talk.
+  // A page load, a reveal and a jump per talk at the location: the default
+  // 30s plus a share per talk.
   test.setTimeout(30_000 + 10_000 * group.length);
   for (const feature of group) {
+    // Each talk starts from a fresh page. A popup and a spread-out cluster
+    // left open by the previous talk would otherwise be rebuilt by the next
+    // reveal, racing its late "unspiderfied" and "popupclose" events and a
+    // spiderfy that is ignored while an animation runs.
+    await openMap(page, `${PAGE}?foundational=include`);
     const first = group[0].properties.key;
     await showButton(page, first).click();
+    await expect(popup(page)).toBeVisible();
     const link = popup(page).locator(`li[data-key=${cssString(feature.properties.key)}] .talk-popup-title`);
     await link.click();
     await expect(heading(page, feature.properties.key)).toBeFocused();
     await expect(heading(page, feature.properties.key)).toBeInViewport();
     expect(new URL(page.url()).hash).toBe("");
+    // Let the jump to the card finish before the next page load.
+    await settled(page);
   }
 });
 

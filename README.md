@@ -67,7 +67,9 @@ pinned.
    The first command makes a branch with one empty commit and no history, without touching your
    working files. Check that **Settings → General → Default branch** is `main`. If `main` was pushed
    first, its publish job fails: push `gh-pages` (`git push origin gh-pages`), then open the failed run
-   and choose **Re-run all jobs**.
+   and choose **Re-run failed jobs**. That re-runs only the publish job, with the site the build
+   already tested (kept for 1 day), and saves the 20-30 minute build. Choose **Re-run all jobs** only
+   if more than a day has passed or the build must run again.
 2. **Settings → Pages → Build and deployment**: Source **Deploy from a branch**; Branch **`gh-pages`**,
    folder **`/ (root)`**; **Save**. (A `douglasfritz.github.io` repository may otherwise serve `main`.)
 3. **Settings → Actions → General**: under "Actions permissions", allow actions from other
@@ -107,7 +109,10 @@ A push to `main` (a change to the code or the pages) starts the same run.
   once in many runs): choose **Re-run all jobs**, and report it if it fails again.
 - **Publish to GitHub Pages** (the publish job): `does not have a branch named "gh-pages"` means step 1
   of the one-time setup is missing; a permission error (403) means the workflow could not write to the
-  repository.
+  repository. When only the publish job failed, fix the cause and choose **Re-run failed jobs**: it
+  re-runs only publish, with the already-tested `site` artifact (kept for 1 day), and saves the 20-30
+  minute build. Choose **Re-run all jobs** only if more than a day has passed or the build must run
+  again.
 
 ### Local equivalents
 
@@ -128,8 +133,10 @@ quarto preview                            # look at the site locally
 
 The full check, from a fixture or live data build:
 `Rscript tests/testthat.R && npm run test:unit && quarto render && npx playwright test && Rscript scripts/verify_generated_public_data.R`
-(add `E2E_DATA=live` before `npx playwright test` after a live build). Everything the workflow
-runs works the same on a local machine, except publishing.
+(add `E2E_DATA=live` before `npx playwright test` after a live build). A local run uses the same
+commands as the workflow (apart from publishing), but the CI runner differs (Linux fonts, live data,
+`CI=true` behaviour), so a failure that happens only in CI is possible: the run's uploaded
+`playwright-report` (HTML report and traces) shows why.
 
 Generated, never committed (git-ignored): `data/generated/*` (apart from `.gitkeep`), `_site/`,
 `.quarto/`, `node_modules/`, `renv/library/`, `playwright-report/` and `test-results/`. The workflow
@@ -259,7 +266,7 @@ Filters are kept in the query string, so a filtered view can be linked, for exam
 
 | Key | Page | Values |
 |---|---|---|
-| `text` | both | free text; every word must appear (accents and case are ignored) |
+| `text` | both | free text; every word must appear (case and common accents such as é, ü and ñ are ignored; letters that are not accent-composed, such as ø, ł, đ, ß and æ, are not folded, so "Soren" does not find "Søren") |
 | `pillar` | both | a full pillar name; matches the primary or the secondary pillar |
 | `status` | publications | `Published`, `In Review` |
 | `year` | both | a year present in the data |
@@ -441,7 +448,11 @@ the approved PDF:
 2. Save it as `assets/documents/Douglas_Fritz_CV.pdf`.
 3. Set `cv_updated` in `data/site.yml` to its date, for example `cv_updated: "2026-10-24"`. The
    render stops if the PDF is present without a valid date.
-4. Run `quarto render` and the tests, then commit the PDF and `data/site.yml`.
+4. Run `quarto render` and the tests.
+5. Before committing the PDF, run this in `assets/documents/`:
+   `pdftotext Douglas_Fritz_CV.pdf - | grep -Ei '@|\+?[0-9][0-9 ()-]{8,}'`, and check that
+   nothing real shows. The ORCID iD and DOIs may match; a phone number or an email address must not.
+6. Commit the PDF and `data/site.yml`.
 
 The copy on these pages is a draft, to be approved before launch: see "Launch checklist" under
 "Publishing and updates".
