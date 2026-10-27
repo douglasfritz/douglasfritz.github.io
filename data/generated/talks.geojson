@@ -1,0 +1,373 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-74.1313, 44.3295]
+      },
+      "properties": {
+        "key": "Phlyowave_Endgame26",
+        "title": "Phylogenetic fitness comparisons of co-circulating dengue strains in Thailand 1965-2020",
+        "organization": "Dengue Endgame 2026",
+        "location": "Saranac Lake, NY, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Infectious-disease biology, evolution and environment",
+        "year": 2026
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [103.8198, 1.3521]
+      },
+      "properties": {
+        "key": "Phlyowave_ADS26",
+        "title": "Advances in Phylodynamic Models of co-circulating dengue strains in Thailand 1960-2020",
+        "organization": "Asia Dengue Summit 2026",
+        "location": "Singapore",
+        "virtual_status": "N",
+        "primary_pillar": "Infectious-disease biology, evolution and environment",
+        "year": 2026
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [1.5857, 50.5243]
+      },
+      "properties": {
+        "key": "Phlyowave_JDD26",
+        "title": "Phylogenetic Fitness Comparisons of Co-circulating Dengue Strains in Thailand (1965-2020)",
+        "organization": "Institute Pasteur JDD2026",
+        "location": "Le Touquet, France",
+        "virtual_status": "N",
+        "primary_pillar": "Infectious-disease biology, evolution and environment",
+        "year": 2026
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [0.1047, 52.2046]
+      },
+      "properties": {
+        "key": "Phlyowave_CID26",
+        "title": "Using Phylogenies to Evaluate Dengue Fitness in Thailand",
+        "organization": "Cambridge Infectious Diseases Annual Symposium 2025",
+        "location": "Cambridge, United Kingdom",
+        "virtual_status": "N",
+        "primary_pillar": "Infectious-disease biology, evolution and environment",
+        "year": 2026
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-4.2518, 55.8642]
+      },
+      "properties": {
+        "key": "HeatMS4SF_Glasgow26",
+        "title": "Extreme Heat & Health: Making an Action Plan",
+        "organization": "School of Medicine University of Glasgow",
+        "location": "Glasgow, Scotland, United Kingdom",
+        "virtual_status": "Y",
+        "primary_pillar": "Climate and planetary health in medicine",
+        "year": 2026
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-117.1611, 32.7157]
+      },
+      "properties": {
+        "key": "Phlyowave_EPI1025",
+        "title": "Phylogenetic fitness comparisons of co-circulating dengue strains in Thailand 1965-2014",
+        "organization": "EPIDEMICS 10: 10th International Conference on Infectious Disease Dynamics",
+        "location": "San Diego, CA, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Infectious-disease biology, evolution and environment",
+        "year": 2025
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-79.3832, 43.6532]
+      },
+      "properties": {
+        "key": "Phlyowave_ASTMH25",
+        "title": "Using Phylogenies to Evaluate Dengue Fitness in Thailand",
+        "organization": "American Society of Tropical Medicine and Health Annual Meeting",
+        "location": "Toronto, Ontario, Canada",
+        "virtual_status": "N",
+        "primary_pillar": "Infectious-disease biology, evolution and environment",
+        "year": 2025
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-76.1474, 43.0481]
+      },
+      "properties": {
+        "key": "Phlyowave_Endgame25",
+        "title": "Phylogenetic Fitness Comparisons of Co-circulating Dengue Strains in Thailand (1965-2014)",
+        "organization": "Dengue Endgame 2025",
+        "location": "Syracuse, NY, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Infectious-disease biology, evolution and environment",
+        "year": 2025
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-77.0947, 38.9847]
+      },
+      "properties": {
+        "key": "DenvTemp_NIHGRS25",
+        "title": "Effect of Temperature on dengue dynamics: NIH New Proposal GPP 2025",
+        "organization": "NIH Graduate Student Research Symposium",
+        "location": "Bethesda, MD, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Infectious-disease biology, evolution and environment",
+        "year": 2025
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.4194, 37.7749]
+      },
+      "properties": {
+        "key": "Chip_OSR24",
+        "title": "Planetary Health Curriculum Integration: A Student-led, Results Driven Pipeline to LO-Based Integration",
+        "organization": "AAMC 2024 Group on Student Affairs (GSA), Careers in Medicine (CiM), Organization of Student Representatives (OSR) National Meeting",
+        "location": "San Francisco, CA, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Climate and planetary health in medicine",
+        "year": 2024
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-104.8377, 39.745]
+      },
+      "properties": {
+        "key": "Chip_C4H24",
+        "title": "Developing Physicians of the Future: Interactive Planetary Health Based Medical School Course Spurs Confidence In Climate Sensitive Healthcare",
+        "organization": "CU Anschutz C4Health Conference",
+        "location": "Denver, CO, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Climate and planetary health in medicine",
+        "year": 2024
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-77.0369, 38.9072]
+      },
+      "properties": {
+        "key": "Chip_MS4SF24",
+        "title": "Planetary Health Curriculum Integration: A student-led stepwise process to teach climate medicine at your Med School.",
+        "organization": "MS4SF's Climate Health Equity Day",
+        "location": "Washington, DC, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Climate and planetary health in medicine",
+        "year": 2024
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-104.9903, 39.7392]
+      },
+      "properties": {
+        "key": "Climate_Grand24",
+        "title": "Why and How You (as a Med Student) Should be Talking to Your Patients about Climate Change and Their Health",
+        "organization": "Medical Student Grand Rounds - CU Anschutz",
+        "location": "Denver, CO, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Climate and planetary health in medicine",
+        "year": 2024
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-74.006, 40.7128]
+      },
+      "properties": {
+        "key": "Birth_CH23",
+        "title": "At the Crossroads of Climate Change and Reproductive Choice: A Scoping Review",
+        "organization": "Climate and Health 2023",
+        "location": "New York, NY, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Climate and planetary health in medicine",
+        "year": 2023
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-104.9903, 39.7392]
+      },
+      "properties": {
+        "key": "Chip_CH23",
+        "title": "Planetary Health Curriculum Integration: A 5 Step process to teach climate medicine at your Med School.",
+        "organization": "Climate and Health 2023",
+        "location": "New York, NY, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Climate and planetary health in medicine",
+        "year": 2023
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-104.9903, 39.7392]
+      },
+      "properties": {
+        "key": "Chip_AHEC23",
+        "title": "Advances in Planetary Health Curriculum Integration.",
+        "organization": "AHEC NEAR Conference",
+        "location": "Denver, CO, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Climate and planetary health in medicine",
+        "year": 2023
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-104.9903, 39.7392]
+      },
+      "properties": {
+        "key": "Climate_AHEC23",
+        "title": "Keynote: Why and How you should be talking to your patients about climate change",
+        "organization": "AHEC NEAR Conference",
+        "location": "Denver, CO, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Climate and planetary health in medicine",
+        "year": 2023
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-104.9903, 39.7392]
+      },
+      "properties": {
+        "key": "Spatial_ISMB23",
+        "title": "Uncover spatially informed biological axes by identifying shared variations underlying single-cell spatial transcriptomics with stCCA",
+        "organization": "ISMB/ECCB 2023",
+        "location": "Denver, CO, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Quantitative and experimental biomedical discovery",
+        "year": 2023
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-104.9903, 39.7392]
+      },
+      "properties": {
+        "key": "Spatial_MDPHD23",
+        "title": "One Size doesn’t fit: the \"best\" ways to statistically model data in spatial transcriptomics",
+        "organization": "National MD-PhD conference",
+        "location": "Denver, CO, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Quantitative and experimental biomedical discovery",
+        "year": 2023
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-104.9903, 39.7392]
+      },
+      "properties": {
+        "key": "IUD_LIC23",
+        "title": "IUD Insertional Pain: Why is it so Awful.",
+        "organization": "University of CO LIC Dream Day",
+        "location": "Denver, CO, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Clinical translation and health-system improvement",
+        "year": 2023
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-77.0369, 38.9072]
+      },
+      "properties": {
+        "key": "MS4SF_AAMC23",
+        "title": "AAMC Webinars and Online Courses: Exploring Student Perspectives: The Current Landscape of Student- led Initiatives in Climate \\& Health Education (Building Better Curriculum)",
+        "organization": "AAMC Webinars and Online Courses:",
+        "location": "Washington, DC, USA",
+        "virtual_status": "Y",
+        "primary_pillar": "Climate and planetary health in medicine",
+        "year": 2023
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-106.9378, 39.213]
+      },
+      "properties": {
+        "key": "Spatial_ISCB22",
+        "title": "A robust computational framework to benchmark spatiotemporal trajectory association analysis in single-cell spatial transcriptomics",
+        "organization": "ISCB Rocky 22",
+        "location": "Snowmass, CO, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Quantitative and experimental biomedical discovery",
+        "year": 2022
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-115.1398, 36.1699]
+      },
+      "properties": {
+        "key": "Spatial_RSG22",
+        "title": "A robust computational framework to benchmark spatiotemporal trajectory association analysis in single-cell spatial transcriptomics",
+        "organization": "RSGDREAM 2022: RECOMB/ISCB Conference on Regulatory and Systems Genomics with DREAM Challenges 2022",
+        "location": "Las Vegas, NV, USA",
+        "virtual_status": "N",
+        "primary_pillar": "Quantitative and experimental biomedical discovery",
+        "year": 2022
+      }
+    }
+  ]
+}
