@@ -24,6 +24,8 @@ const talks = loadYaml(readGenerated("talks.yml"));
 const features = JSON.parse(readGenerated("talks.geojson")).features;
 const JET_BLACK = "rgb(37, 50, 55)";
 const TILE_PATTERN = /^https:\/\/tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png$/;
+// The content type of each kind of file the site links besides its HTML pages.
+const FILE_TYPES = { ".pdf": "application/pdf" };
 const shownByDefault = (records) => records.filter((record) => record.foundational_work !== "Y");
 const mappedShownTalk = features.find((feature) => shownByDefault(talks).some((record) => record.key === feature.properties.key));
 
@@ -705,11 +707,25 @@ test.describe("without JavaScript", { tag: "@no-js" }, () => {
       }
     }
     expect(targets.size).toBeGreaterThanOrEqual(ROUTES.length);
-    // One load per linked page and a check per linked card: the default 30s
-    // plus a share for each.
+    // One request and load per linked page and a check per linked card: the
+    // default 30s plus a share for each.
     const fragments = [...targets.values()].reduce((sum, ids) => sum + ids.size, 0);
     test.setTimeout(30_000 + 3_000 * targets.size + 200 * fragments);
     for (const [pageUrl, fragments] of targets) {
+      // Ask for the target first: a link to a file (the CV's PDF, which the
+      // CV page links only when it exists) is checked by this request alone,
+      // never opened, because a browser downloads such a file instead of
+      // showing it ("Download is starting") and it has no elements to check.
+      // Only an HTML page is opened, below.
+      const probe = await page.request.get(pageUrl);
+      expect(probe.status(), pageUrl).toBe(200);
+      const type = (probe.headers()["content-type"] ?? "").split(";")[0].trim().toLowerCase();
+      if (type !== "text/html") {
+        const extension = /\.[a-z0-9]+$/i.exec(new URL(pageUrl).pathname)?.[0].toLowerCase() ?? "";
+        expect(FILE_TYPES[extension], `${pageUrl} is served as ${JSON.stringify(type)}, not as an HTML page: name its type in FILE_TYPES`).toBeDefined();
+        expect(type, pageUrl).toBe(FILE_TYPES[extension]);
+        continue;
+      }
       const response = await page.goto(pageUrl);
       expect(response.status(), pageUrl).toBe(200);
       for (const id of fragments) await expect(page.locator(`[id=${cssString(id)}]`), `${pageUrl}#${id}`).toHaveCount(1);
